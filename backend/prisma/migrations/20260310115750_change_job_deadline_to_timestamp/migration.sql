@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Job" ALTER COLUMN "deadline" SET DATA TYPE TIMESTAMP(6);

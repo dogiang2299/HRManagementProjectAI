@@ -1,0 +1,905 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Role {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_code  String?        @unique @db.VarChar(50)
+  name_role  String?        @db.VarChar(100)
+  is_active  Boolean        @default(true)
+  status     String         @db.VarChar(50)
+  created_at DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at DateTime?      @default(now()) @db.Timestamp(6)
+  employees  EmployeeRole[]
+}
+
+model Employee {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  emp_code                   String?                      @unique @db.VarChar(50)
+  employee_name              String?                      @db.VarChar(300)
+  password                   String                       @db.VarChar(100)
+  date_of_birth              DateTime?                    @db.Date
+  gender                     GenderEmployee?
+  address                    String?
+  email                      String?                      @db.VarChar(100)
+  status                     String                       @db.VarChar(50)
+  email_account              String                       @unique @db.VarChar(100)
+  phone_account              String                       @unique @db.VarChar(15)
+  is_active                  Boolean                      @default(true)
+  created_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  avatar                     String?                      @db.VarChar(500)
+  company_id                 String?                      @db.Uuid
+  candidateAccount           Candidate?                   @relation("CandidateEmployeeAccount")
+  referrerOfCandidates       Candidate[]
+  candidateAuditLogs         CandidateAuditLog[]
+  reviewCandidate            CandidateReview[]
+  chatConversations          ChatConversation[]
+  registerCompany            CompanyRegistrationRequest[]
+  company                    InforCompany?                @relation(fields: [company_id], references: [id])
+  roles                      EmployeeRole[]
+  jobApplications            Job[]
+  resetPass                  PasswordResetOtp[]
+  contactPersonInRecruitment Recruitment_Infor[]
+}
+
+model CompanyFollow {
+  candidate_id String       @db.Uuid
+  company_id   String       @db.Uuid
+  created_at   DateTime     @default(now()) @db.Timestamp(6)
+  candidate    Candidate    @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  company      InforCompany @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@id([candidate_id, company_id])
+  @@index([candidate_id])
+  @@index([company_id])
+  @@map("company_follow")
+}
+
+model EmployeeRole {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_role     String   @db.Uuid
+  id_employee String   @db.Uuid
+  employee    Employee @relation(fields: [id_employee], references: [id], onDelete: Cascade)
+  role        Role     @relation(fields: [id_role], references: [id], onDelete: Cascade)
+
+  @@unique([id_role, id_employee])
+  @@index([id_role])
+  @@index([id_employee])
+}
+
+model InforCompany {
+  id                      String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  infor_code              String?                      @unique @db.VarChar(50)
+  full_name               String?                      @db.VarChar(255)
+  acronym_name            String?                      @db.VarChar(50)
+  business_type           String?                      @db.VarChar(100)
+  tax_idennumber          String?                      @db.VarChar(13)
+  code_company            String?                      @db.VarChar(10)
+  date_stablish           DateTime?                    @db.Date
+  image_logo              String?
+  code_business           String?                      @db.VarChar(50)
+  date_of_issue           DateTime?                    @db.Date
+  place_of_issue          String?
+  address                 String?
+  phone_number            String?                      @db.VarChar(15)
+  fax                     String?                      @db.VarChar(255)
+  email                   String?                      @db.VarChar(255)
+  website                 String?                      @db.VarChar(255)
+  status                  String?                      @db.VarChar(100)
+  field_of_activity       String?                      @db.VarChar(50)
+  is_active               Boolean                      @default(true)
+  created_at              DateTime                     @default(now()) @db.Timestamp(6)
+  updated_at              DateTime                     @default(now()) @db.Timestamp(6)
+  description             String?
+  map_link                String?
+  field_of_activity_id    String?                      @db.Uuid
+  employee_quantity       String?
+  short_address           String?                      @db.VarChar(255)
+  chatConversations       ChatConversation[]
+  registrationRequest     CompanyRegistrationRequest[]
+  employees               Employee[]
+  field_of_activity_group Position_Group?              @relation("InforCompanyFieldOfActivity", fields: [field_of_activity_id], references: [id])
+  Interview_Schedule      Interview_Schedule[]
+  positionGroups          Position_Group[]
+  rankUnits               Rank[]
+  department              Recruitment_Infor[]          @relation("DepartmentCompany")
+  workLocations           Recruitment_Infor[]          @relation("WorkLocationCompany")
+  settingEmail            SettingEmail[]
+  positionPosts           Setting_Position_Posts[]
+  potentialTypes          Setting_Potential_Type[]
+  skills                  Skill[]
+  localSkills             Skill[]                       @relation("CompanyLocalSkills")
+  companySkills           CompanySkill[]
+  companyFollows          CompanyFollow[]
+  jobBoards               Job[]
+}
+
+model Recruitment_Infor {
+  id                       String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_code         String?                      @unique @db.VarChar(50)
+  internal_title           String?                      @db.VarChar(300)
+  post_title               String?                      @db.VarChar(300)
+  department_id            String?                      @db.Uuid
+  rank_id                  String?                      @db.Uuid
+  work_location_id         String?                      @db.Uuid
+  type_of_job              String?                      @db.VarChar(150)
+  application_deadline     DateTime?                    @db.Date
+  salary_from              Float?
+  salary_to                Float?
+  salary_currency          String?                      @db.VarChar(50)
+  contact_person_id        String?                      @db.Uuid
+  status                   String?                      @db.VarChar(50)
+  is_active                Boolean                      @default(true)
+  created_at               DateTime?                    @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?                    @default(now()) @db.Timestamp(6)
+  position_post_id         String                       @db.Uuid
+  total_needed             Int?
+  experience_label         String?                      @db.VarChar(100)
+  experience_max           Int?
+  experience_min           Int?
+  experience_type          String?                      @db.VarChar(50)
+  is_salary_negotiable     Boolean                      @default(false)
+  benefit_more Json?
+  working_time String?
+  statusApplication        Application[]
+  candidateRecommendations CandidateJobRecommendation[]
+  chatConversations        ChatConversation[]
+  aiProfile                JobAIProfile?
+  embedding                JobEmbedding?
+  recruitmentSkills        RecruitmentSkill[]
+  recruitmentCosts         Recruitment_Costs[]
+  contactPerson            Employee?                    @relation(fields: [contact_person_id], references: [id])
+  department               InforCompany?                @relation("DepartmentCompany", fields: [department_id], references: [id], onDelete: Cascade)
+  positionPost             Setting_Position_Posts       @relation(fields: [position_post_id], references: [id], onDelete: Cascade)
+  rank                     Rank?                        @relation(fields: [rank_id], references: [id], onDelete: Cascade)
+  workLocation             InforCompany?                @relation("WorkLocationCompany", fields: [work_location_id], references: [id], onDelete: Cascade)
+  recruitmentPlans         Recruitment_Plan_Parent[]
+  savedJRecruitments       SavedJRecruitment[]
+}
+
+model Recruitment_Plan_Parent {
+  id                          String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_id              String?                          @db.Uuid
+  total_real_number           Int?
+  monthly_target              DateTime?                        @db.Date
+  expected_deadline           DateTime?                        @db.Date
+  recruitmentPlanChildBatches Recruitment_Plan_Child_Batches[]
+  recruitmentPlanChildPosteds Recruitment_Plan_Child_Posted[]
+  recruitmentInfor            Recruitment_Infor?               @relation(fields: [recruitment_id], references: [id], onDelete: Cascade)
+}
+
+model Recruitment_Plan_Child_Batches {
+  id                         String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_plan_parent_id String?                  @db.Uuid
+  batches_title              String?                  @unique @db.VarChar(200)
+  from_date                  DateTime?                @db.Date
+  to_date                    DateTime?                @db.Date
+  number_recruitment         Int?
+  monthly_target             DateTime?                @db.Date
+  recruitmentPlanParent      Recruitment_Plan_Parent? @relation(fields: [recruitment_plan_parent_id], references: [id], onDelete: Cascade)
+}
+
+model Recruitment_Plan_Child_Posted {
+  id                         String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_plan_parent_id String?                  @db.Uuid
+  posted_date                DateTime?                @db.Date
+  expiration_date            DateTime?                @db.Date
+  job_board                  String?                  @db.VarChar(100)
+  recruitmentPlanParent      Recruitment_Plan_Parent? @relation(fields: [recruitment_plan_parent_id], references: [id], onDelete: Cascade)
+}
+
+model Recruitment_Costs {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_id   String?            @db.Uuid
+  cost_type        String?            @db.VarChar(300)
+  amount           Float?
+  currency         String?            @db.VarChar(50)
+  recruitmentInfor Recruitment_Infor? @relation(fields: [recruitment_id], references: [id], onDelete: Cascade)
+}
+
+model Position_Group {
+  id             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name_group     String                   @db.VarChar(150)
+  slug           String?                  @unique
+  description    String?
+  created_at     DateTime?                @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?                @default(now()) @db.Timestamp(6)
+  unit_id        String?                  @db.Uuid
+  inforCompanies InforCompany[]           @relation("InforCompanyFieldOfActivity")
+  inforCompany   InforCompany?            @relation(fields: [unit_id], references: [id], onDelete: Cascade)
+  positions      Setting_Position_Posts[]
+}
+
+model Setting_Position_Posts {
+  id                             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  position_code                  String?             @unique @db.VarChar(50)
+  name_post                      String?             @db.VarChar(100)
+  unit_id                        String?             @db.Uuid
+  description_post               String?
+  requirements_post              String?
+  benefits_post                  String?
+    benefit_more Json?
+  Setting_Process_Recruitment_id String?             @db.Uuid
+  is_active                      Boolean             @default(true)
+  created_at                     DateTime?           @default(now()) @db.Timestamp(6)
+  updated_at                     DateTime?           @default(now()) @db.Timestamp(6)
+  auto_rotation                  Boolean             @default(false)
+  auto_eli_candidate             Boolean             @default(false)
+  auto_near                      Boolean             @default(false)
+  status                         String?             @db.VarChar(50)
+  group_id                       String?             @db.Uuid
+  desiredByCandidates            Candidate[]         @relation("CandidateDesiredPosition")
+  aliases                        PositionAlias[]
+  positionSkill                  PositionSkill[]
+  recInfor                       Recruitment_Infor[]
+  group                          Position_Group?     @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  inforCompany                   InforCompany?       @relation(fields: [unit_id], references: [id], onDelete: Cascade)
+}
+
+model Rank {
+  id                           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rank_code                    String?              @unique @db.VarChar(50)
+  name_rank                    String?              @db.VarChar(100)
+  unit_id                      String?              @db.Uuid
+  status                       String?              @db.VarChar(50)
+  description                  String?
+  is_active                    Boolean              @default(true)
+  created_at                   DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime?            @default(now()) @db.Timestamp(6)
+  desiredByCandidates          Candidate[]          @relation("CandidateDesiredRank")
+  inferredForCandidateProfiles CandidateAIProfile[]
+  jobAiProfiles                JobAIProfile[]
+  rankUnit                     InforCompany?        @relation(fields: [unit_id], references: [id], onDelete: Cascade)
+  rank_levels                  Recruitment_Infor[]
+}
+
+model Setting_Training_Level {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  level_code String?   @unique @db.VarChar(50)
+  name_level String?   @db.VarChar(100)
+  is_active  Boolean   @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model Setting_Potential_Type {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  description  String?
+  is_active    Boolean       @default(true)
+  created_at   DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at   DateTime?     @default(now()) @db.Timestamp(6)
+  unit_id      String?       @db.Uuid
+  candidate    Candidate[]
+  inforCompany InforCompany? @relation(fields: [unit_id], references: [id], onDelete: Cascade)
+}
+
+model SettingEmail {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sec_code      String?       @unique @db.VarChar(50)
+  name          String?       @db.VarChar(300)
+  unit_id       String?       @db.Uuid
+  subject       String?       @db.VarChar(255)
+  body          String?
+  auto_send     Boolean?      @default(false)
+  is_active     Boolean       @default(true)
+  created_at    DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?     @default(now()) @db.Timestamp(6)
+  template_type String?       @db.VarChar(50)
+  inforCompany  InforCompany? @relation(fields: [unit_id], references: [id], onDelete: Cascade)
+}
+
+model Candidate {
+  id                   String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_code       String?                      @unique @db.VarChar(50)
+  candidate_name       String?                      @db.VarChar(300)
+  date_of_birth        DateTime?                    @db.Date
+  gender               String?                      @db.VarChar(50)
+  phone_number         String?                      @db.VarChar(15)
+  email                String?                      @db.VarChar(100)
+  address              String?
+  country              String?                      @db.VarChar(100)
+  provice              String?                      @db.VarChar(100)
+  district             String?                      @db.VarChar(100)
+  date_applied         DateTime?                    @db.Date
+  referrer_id          String?                      @db.Uuid
+  is_active            Boolean                      @default(true)
+  is_potential         Boolean                      @default(false)
+  potential_type_id    String?                      @db.Uuid
+  created_at           DateTime?                    @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?                    @default(now()) @db.Timestamp(6)
+  status               String?                      @db.VarChar(50)
+  cv_file              String?                      @db.VarChar(500)
+  cv_uploaded_at       DateTime?
+  avatar_file          String?                      @db.VarChar(500)
+  avatar_uploaded_at   DateTime?
+  career_summary       String?
+  cv_extracted_text    String?
+  desired_position_id  String?                      @db.Uuid
+  desired_rank_id      String?                      @db.Uuid
+  preferred_job_type   String?                      @db.VarChar(100)
+  employee_id          String?                      @unique @db.Uuid
+  statusApplication    Application[]
+  desiredPosition      Setting_Position_Posts?      @relation("CandidateDesiredPosition", fields: [desired_position_id], references: [id])
+  desiredRank          Rank?                        @relation("CandidateDesiredRank", fields: [desired_rank_id], references: [id])
+  employeeAccount      Employee?                    @relation("CandidateEmployeeAccount", fields: [employee_id], references: [id])
+  potential            Setting_Potential_Type?      @relation(fields: [potential_type_id], references: [id], onDelete: Cascade)
+  referrer             Employee?                    @relation(fields: [referrer_id], references: [id])
+  aiProfile            CandidateAIProfile?
+  auditLogs            CandidateAuditLog[]
+  embedding            CandidateEmbedding?
+  recommendations      CandidateJobRecommendation[]
+  reviewCandidate      CandidateReview[]
+  candidateSkill       CandidateSkill[]
+  candidateExperiences Candidate_Experience[]
+  chatConversations    ChatConversation[]
+  jobCandidates        Job_Candidates[]
+  savedJRecruitment    SavedJRecruitment[]
+  schedules            Schedules_Candidates[]
+  aiCvChatSessions     AiCvChatSession[]
+  candidate_cvs        CandidateCV[]
+  companyFollows       CompanyFollow[]
+}
+
+model CandidateCV {
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id             String                   @db.Uuid
+  title                    String?                  @db.VarChar(255)
+  source_type              String                   @db.VarChar(50)
+  status                   String                   @db.VarChar(50)
+  is_primary               Boolean                  @default(false)
+  file_url                 String?
+  file_name                String?                  @db.VarChar(500)
+  raw_text                 String?
+  structured_data          Json?
+  summary                  String?
+  desired_position         String?                  @db.VarChar(255)
+  years_experience         Float?
+  created_at               DateTime                 @default(now()) @db.Timestamp(6)
+  updated_at               DateTime                 @updatedAt @db.Timestamp(6)
+  applications             Application[]
+  exportedAiCvChatSessions AiCvChatSession[]        @relation("AiCvChatExportedCv")
+  candidate                Candidate                @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  messages                 CandidateCVChatMessage[]
+
+  @@index([candidate_id])
+  @@index([source_type])
+  @@index([status])
+  @@index([is_primary])
+  @@map("candidate_cv")
+}
+
+model CandidateCVChatMessage {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cv_id      String      @db.Uuid
+  role       String      @db.VarChar(30)
+  content    String
+  created_at DateTime    @default(now()) @db.Timestamp(6)
+  cv         CandidateCV @relation(fields: [cv_id], references: [id], onDelete: Cascade)
+
+  @@index([cv_id])
+  @@map("candidate_cv_chat_message")
+}
+
+model AiCvChatSession {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id   String            @db.Uuid
+  title          String?           @db.VarChar(255)
+  status         String            @db.VarChar(50)
+  draft_context  Json
+  exported_cv_id String?           @db.Uuid
+  created_at     DateTime          @default(now()) @db.Timestamp(6)
+  updated_at     DateTime          @updatedAt @db.Timestamp(6)
+  messages       AiCvChatMessage[]
+  candidate      Candidate         @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  exportedCv     CandidateCV?      @relation("AiCvChatExportedCv", fields: [exported_cv_id], references: [id])
+
+  @@index([candidate_id])
+  @@index([status])
+  @@index([exported_cv_id])
+  @@map("ai_cv_chat_session")
+}
+
+model AiCvChatMessage {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id String          @db.Uuid
+  role       String          @db.VarChar(30)
+  content    String
+  created_at DateTime        @default(now()) @db.Timestamp(6)
+  session    AiCvChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@map("ai_cv_chat_message")
+}
+
+model CandidateAuditLog {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id      String    @db.Uuid
+  actor_employee_id String?   @db.Uuid
+  actor_type        String    @default("System") @db.VarChar(30)
+  actor_role        String?   @db.VarChar(100)
+  action            String    @db.VarChar(120)
+  message           String
+  metadata          Json?
+  created_at        DateTime  @default(now()) @db.Timestamp(6)
+  actorEmployee     Employee? @relation(fields: [actor_employee_id], references: [id])
+  candidate         Candidate @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+
+  @@index([candidate_id, created_at])
+  @@index([actor_employee_id])
+}
+
+model Application {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id         String            @db.Uuid
+  recruitment_infor_id String            @db.Uuid
+  status               String            @db.VarChar(100)
+  note                 String?
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  applied_at           DateTime?
+  reapply_count        Int               @default(0)
+  cover_letter         String?
+  connection_accepted  Boolean           @default(false)
+  candidate_cv_id      String?           @db.Uuid
+  candidate_cv         CandidateCV?      @relation(fields: [candidate_cv_id], references: [id])
+  candidate            Candidate         @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  recruitment_infor    Recruitment_Infor @relation(fields: [recruitment_infor_id], references: [id], onDelete: Cascade)
+  chatConversation     ChatConversation?
+
+  @@unique([candidate_id, recruitment_infor_id])
+  @@index([candidate_cv_id])
+}
+
+model SavedJRecruitment {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id         String            @db.Uuid
+  recruitment_infor_id String            @db.Uuid
+  created_at           DateTime          @default(now())
+  candidate            Candidate         @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  recruitment_infor    Recruitment_Infor @relation(fields: [recruitment_infor_id], references: [id], onDelete: Cascade)
+
+  @@unique([candidate_id, recruitment_infor_id])
+}
+
+model Candidate_Experience {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id    String    @db.Uuid
+  company_name    String?   @db.VarChar(200)
+  position        String?   @db.VarChar(100)
+  from_month      DateTime? @db.Date
+  to_month        DateTime? @db.Date
+  job_description String?
+  is_active       Boolean   @default(true)
+  candidate       Candidate @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+}
+
+model CandidateReview {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id String    @db.Uuid
+  reviewer_id  String    @db.Uuid
+  rating       Decimal   @db.Decimal(2, 1)
+  comment      String?
+  is_active    Boolean   @default(true)
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  Candidate    Candidate @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  Reviewer     Employee  @relation(fields: [reviewer_id], references: [id], onDelete: Cascade)
+
+  @@index([candidate_id])
+  @@index([reviewer_id])
+}
+
+model Interview_Schedule {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sche_code          String?                 @unique @db.VarChar(50)
+  interview_date     DateTime?               @db.Timestamp(6)
+  interview_location String?
+  interview_room     String?                 @db.VarChar(100)
+  time_duration      Int
+  times              DateTime?               @db.Timestamp(6)
+  is_active          Boolean                 @default(true)
+  created_at         DateTime?               @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?               @default(now()) @db.Timestamp(6)
+  type_schedule      String?
+  meeting_link       String?
+  note               String?
+  status             InterviewScheduleStatus @default(PENDING)
+  expired_at         DateTime?               @db.Timestamp(6)
+  accepted_at        DateTime?               @db.Timestamp(6)
+  rejected_at        DateTime?               @db.Timestamp(6)
+  cancelled_at       DateTime?               @db.Timestamp(6)
+  company_id         String?                 @db.Uuid
+  InforCompany       InforCompany?           @relation(fields: [company_id], references: [id])
+  candidates         Schedules_Candidates[]
+
+  @@index([company_id])
+}
+
+model Schedules_Candidates {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  interview_schedule_id String             @db.Uuid
+  candidate_id          String             @db.Uuid
+  candidate             Candidate          @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  interviewSchedule     Interview_Schedule @relation(fields: [interview_schedule_id], references: [id], onDelete: Cascade)
+
+  @@unique([interview_schedule_id, candidate_id])
+}
+
+model Job {
+  id                    String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job_code              String?          @unique @db.VarChar(50)
+  name_job              String?          @db.VarChar(200)
+  description_job       String?
+  type_job              String?          @db.VarChar(100)
+  result_job            String?          @db.VarChar(100)
+  employee_id           String?          @db.Uuid
+  deadline              DateTime?        @db.Timestamp(6)
+  remind_enabled        Boolean?         @default(false)
+  remind_before_minutes Int?
+  status                String?          @db.VarChar(50)
+  is_active             Boolean          @default(true)
+  created_at            DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at            DateTime?        @default(now()) @db.Timestamp(6)
+  company_id         String?                 @db.Uuid
+  InforCompany       InforCompany?           @relation(fields: [company_id], references: [id])
+  employee              Employee?        @relation(fields: [employee_id], references: [id], onDelete: Cascade)
+  jobCandidates         Job_Candidates[]
+}
+
+model Job_Candidates {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job_id       String    @db.Uuid
+  candidate_id String    @db.Uuid
+  candidate    Candidate @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  job          Job       @relation(fields: [job_id], references: [id], onDelete: Cascade)
+}
+
+model Skill {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String                 @unique
+  parent_id         String?                @db.Uuid
+  is_active         Boolean                @default(true)
+  created_at        DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at        DateTime?              @default(now()) @db.Timestamp(6)
+  description       String?
+  external_code     String?                @db.VarChar(100)
+  source            String?                @db.VarChar(50)
+  unit_id           String?                @db.Uuid
+  scope             String                 @default("GLOBAL") @db.VarChar(50)
+  company_id        String?                @db.Uuid
+  is_verified       Boolean                @default(true)
+  merged_to_skill_id String?               @db.Uuid
+  candidateSkill    CandidateSkill[]
+  positionSkill     PositionSkill[]
+  recruitmentSkills RecruitmentSkill[]
+  companySkills     CompanySkill[]
+  parent            Skill?                 @relation("SkillTree", fields: [parent_id], references: [id])
+  children          Skill[]                @relation("SkillTree")
+  inforCompany      InforCompany?          @relation(fields: [unit_id], references: [id], onDelete: Cascade)
+  companyOwner      InforCompany?          @relation("CompanyLocalSkills", fields: [company_id], references: [id], onDelete: SetNull)
+  mergedToSkill     Skill?                 @relation("SkillMerge", fields: [merged_to_skill_id], references: [id], onDelete: SetNull)
+  mergedFromSkills  Skill[]                @relation("SkillMerge")
+  aliases           SkillAlias[]
+  taxonomyMappings  SkillTaxonomyMapping[]
+
+  @@index([scope])
+  @@index([company_id])
+  @@index([merged_to_skill_id])
+}
+
+model CompanySkill {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id String       @db.Uuid
+  skill_id   String       @db.Uuid
+  is_active  Boolean      @default(true)
+  source     String?      @db.VarChar(50)
+  note       String?
+  created_at DateTime     @default(now()) @db.Timestamp(6)
+  updated_at DateTime     @default(now()) @db.Timestamp(6)
+  company    InforCompany @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  skill      Skill        @relation(fields: [skill_id], references: [id], onDelete: Restrict)
+
+  @@unique([company_id, skill_id])
+  @@index([company_id])
+  @@index([skill_id])
+  @@map("company_skill")
+}
+
+model PositionSkill {
+  position_id String                 @db.Uuid
+  skill_id    String                 @db.Uuid
+  level       Int?
+  is_required Boolean                @default(true)
+  position    Setting_Position_Posts @relation(fields: [position_id], references: [id])
+  skill       Skill                  @relation(fields: [skill_id], references: [id])
+
+  @@id([position_id, skill_id])
+}
+
+model CandidateSkill {
+  candidate_id String    @db.Uuid
+  skill_id     String    @db.Uuid
+  level        Int?
+  candidate    Candidate @relation(fields: [candidate_id], references: [id])
+  skill        Skill     @relation(fields: [skill_id], references: [id])
+
+  @@id([candidate_id, skill_id])
+}
+
+model CompanyRegistrationRequest {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyName      String
+  email            String
+  phone            String?
+  address          String?
+  status           String
+  createdAt        DateTime      @default(now())
+  approvedAt       DateTime?
+  adminNote        String?
+  createdById      String?       @db.Uuid
+  is_active        Boolean       @default(true)
+  inforCompanyId   String?       @db.Uuid
+  recruitmentNeeds String?
+  source           String?
+  website          String?
+  createdBy        Employee?     @relation(fields: [createdById], references: [id])
+  inforCompany     InforCompany? @relation(fields: [inforCompanyId], references: [id], onDelete: Cascade)
+}
+
+model SkillAlias {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  skill_id   String    @db.Uuid
+  alias_text String    @unique @db.VarChar(200)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  skill      Skill     @relation(fields: [skill_id], references: [id], onDelete: Cascade)
+}
+
+model PositionAlias {
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  position_id String                 @db.Uuid
+  alias_text  String                 @db.VarChar(200)
+  created_at  DateTime?              @default(now()) @db.Timestamp(6)
+  position    Setting_Position_Posts @relation(fields: [position_id], references: [id], onDelete: Cascade)
+
+  @@unique([position_id, alias_text])
+  @@index([alias_text])
+}
+
+model CandidateAIProfile { // lưu hồ sơ AI đã xử lý của ứng viên.
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id            String    @unique @db.Uuid
+  raw_text                String?    // Văn bản gốc được lấy từ CV/profile ứng viên.
+  normalized_text         String?    // Văn bản sau khi chuẩn hóa. Ví dụ chuyển về chữ thường, xóa ký tự thừa, chuẩn hóa dấu câu, chuẩn hóa tên skill.
+  detected_position_ids   String[]  @db.Uuid // Danh sách ID vị trí mà AI phát hiện từ CV.
+  detected_skill_ids      String[]  @db.Uuid // Danh sách ID kỹ năng mà AI phát hiện từ CV.
+  inferred_rank_id        String?   @db.Uuid // ID cấp bậc được suy luận từ hồ sơ AI.
+  total_experience_months Int?                // Tổng số tháng kinh nghiệm.
+  created_at              DateTime? @default(now()) @db.Timestamp(6)
+  updated_at              DateTime  @updatedAt
+  candidate               Candidate @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  inferredRank            Rank?     @relation(fields: [inferred_rank_id], references: [id])
+}
+
+model JobAIProfile {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_infor_id  String            @unique @db.Uuid
+  raw_text              String?
+  normalized_text       String?
+  detected_position_ids String[]          @db.Uuid
+  detected_skill_ids    String[]          @db.Uuid
+  rank_id               String?           @db.Uuid
+  created_at            DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at            DateTime          @updatedAt
+  rank                  Rank?             @relation(fields: [rank_id], references: [id])
+  recruitmentInfor      Recruitment_Infor @relation(fields: [recruitment_infor_id], references: [id], onDelete: Cascade)
+}
+
+// lưu vector embedding của ứng viên.
+model CandidateEmbedding {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id String    @unique @db.Uuid
+  model_name   String    @db.VarChar(100) // Tên model dùng để sinh embedding: VD: intfloat/multilingual-e5-base
+  vector_json  Json     // Dữ liệu vector được lưu dưới dạng JSON. Ví dụ: {"0": 0.123, "1": 0.456, ...}
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  updated_at   DateTime  @updatedAt
+  candidate    Candidate @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+}
+
+model JobEmbedding {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_infor_id String            @unique @db.Uuid
+  model_name           String            @db.VarChar(100) // Tên model dùng để sinh embedding: VD: intfloat/multilingual-e5-base
+  vector_json          Json              // Dữ liệu vector được lưu dưới dạng JSON. Ví dụ: {"0": 0.123, "1": 0.456, ...}
+  created_at           DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at           DateTime          @updatedAt
+  recruitmentInfor     Recruitment_Infor @relation(fields: [recruitment_infor_id], references: [id], onDelete: Cascade)
+}
+
+model RecruitmentSkill {
+  recruitment_id String            @db.Uuid
+  skill_id       String            @db.Uuid
+  level          Int?
+  is_required    Boolean           @default(true)
+  recruitment    Recruitment_Infor @relation(fields: [recruitment_id], references: [id], onDelete: Cascade)
+  skill          Skill             @relation(fields: [skill_id], references: [id], onDelete: Cascade)
+
+  @@id([recruitment_id, skill_id])
+}
+
+model PasswordResetOtp {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String    @db.VarChar(255)
+  otp_code    String    @db.VarChar(10)
+  expired_at  DateTime  @db.Timestamp(6)
+  is_used     Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  employee_id String?   @db.Uuid
+  employee    Employee? @relation(fields: [employee_id], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([employee_id])
+}
+
+model EmailLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id   String?  @db.Uuid
+  to_email      String   @db.VarChar(255)
+  subject       String?  @db.VarChar(255)
+  body          String?
+  status        String?  @db.VarChar(50)
+  error_message String?
+  sent_by       String?  @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamp(6)
+}
+
+model ChatConversation {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  application_id         String            @unique @db.Uuid
+  candidate_id           String            @db.Uuid
+  employer_id            String            @db.Uuid
+  recruitment_infor_id   String            @db.Uuid
+  company_id             String?           @db.Uuid
+  last_message           String?
+  last_message_at        DateTime?
+  candidate_unread_count Int               @default(0)
+  employer_unread_count  Int               @default(0)
+  status                 String            @default("ACTIVE") @db.VarChar(50)
+  is_active              Boolean           @default(true)
+  created_at             DateTime          @default(now()) @db.Timestamp(6)
+  updated_at             DateTime          @default(now()) @db.Timestamp(6)
+  application            Application       @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  candidate              Candidate         @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  company                InforCompany?     @relation(fields: [company_id], references: [id])
+  employer               Employee          @relation(fields: [employer_id], references: [id], onDelete: Cascade)
+  recruitment_infor      Recruitment_Infor @relation(fields: [recruitment_infor_id], references: [id], onDelete: Cascade)
+  messages               ChatMessage[]
+
+  @@index([candidate_id])
+  @@index([employer_id])
+  @@index([recruitment_infor_id])
+  @@index([company_id])
+  @@index([last_message_at])
+}
+
+model ChatMessage {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String           @db.Uuid
+  sender_type     String           @db.VarChar(30)
+  sender_id       String           @db.Uuid
+  content         String
+  message_type    String           @default("TEXT") @db.VarChar(30)
+  is_read         Boolean          @default(false)
+  read_at         DateTime?
+  is_deleted      Boolean          @default(false)
+  created_at      DateTime         @default(now()) @db.Timestamp(6)
+  updated_at      DateTime         @updatedAt
+  conversation    ChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at])
+  @@index([sender_type, sender_id])
+}
+
+model Notification {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiver_id   String    @db.Uuid
+  receiver_role String    @db.VarChar(50)
+  type          String    @db.VarChar(50)
+  title         String    @db.VarChar(255)
+  content       String?
+  related_type  String?   @db.VarChar(50)
+  related_id    String?   @db.Uuid
+  is_read       Boolean   @default(false)
+  read_at       DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  @@index([receiver_id, receiver_role])
+  @@index([type])
+  @@index([is_read])
+  @@index([created_at])
+}
+
+// lưu kết quả hệ thống recommend job cho candidate.
+model CandidateJobRecommendation {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id           String            @db.Uuid
+  recruitment_infor_id   String            @db.Uuid
+  skill_overlap_score    Float? // Điểm trùng khớp kỹ năng giữa candidate và job.
+  group_similarity_score Float? // Điểm tương đồng theo nhóm taxonomy skill.
+  dominant_group_score   Float? // Điểm liên quan đến nhóm kỹ năng chính/dominant group.
+  baseline_score         Float? // Điểm nền ban đầu, thường được tính từ skill overlap + taxonomy.
+  semantic_score         Float? // Điểm tương đồng ngữ nghĩa giữa CV và JD.
+  hybrid_score           Float? // Điểm kết hợp giữa baseline score và semantic score.
+  final_score            Float ? // Điểm cuối cùng sau khi cân nhắc tất cả các yếu tố.
+  matched_skill_ids      String[]          @db.Uuid // Danh sách ID kỹ năng mà candidate có và phù hợp với job.
+  missing_skill_ids      String[]          @db.Uuid // Danh sách skill job cần nhưng candidate còn thiếu.
+  reason_texts           String[]
+  pipeline_version       String?           @db.VarChar(100) // Phiên bản pipeline recommendation.
+  model_name             String?           @db.VarChar(100) // Tên model AI nếu có tham gia vào quá trình recommendation.
+  calculated_at          DateTime          @default(now()) @db.Timestamp(6) // Thời điểm hệ thống tính recommendation.
+  created_at             DateTime          @default(now()) @db.Timestamp(6)
+  updated_at             DateTime          @updatedAt
+  experience_score       Float?   // Điểm phù hợp về kinh nghiệm.
+  position_score Float?
+  rank_score     Float?
+  job_type_score Float?
+  location_score Float?
+  candidate              Candidate         @relation(fields: [candidate_id], references: [id], onDelete: Cascade)
+  recruitmentInfor       Recruitment_Infor @relation(fields: [recruitment_infor_id], references: [id], onDelete: Cascade)
+
+  @@unique([candidate_id, recruitment_infor_id])
+  @@index([candidate_id, final_score])
+  @@index([recruitment_infor_id])
+}
+
+model SkillTaxonomyMapping {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  skill_id          String   @db.Uuid
+  taxonomy_group    String   @db.VarChar(200)
+  taxonomy_subgroup String?  @db.VarChar(200)
+  source            String?  @db.VarChar(50)
+  created_at        DateTime @default(now()) @db.Timestamp(6)
+  updated_at        DateTime @updatedAt
+  skill             Skill    @relation(fields: [skill_id], references: [id], onDelete: Cascade)
+
+  @@unique([skill_id, taxonomy_group, taxonomy_subgroup])
+  @@index([skill_id])
+  @@index([taxonomy_group])
+  @@index([taxonomy_subgroup])
+}
+
+model BlogPost {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  slug          String    @unique
+  summary       String?
+  content       String
+  thumbnail_url String?
+  category      String    @default("IT Career")
+  tags          String[]  @default([])
+  author_name   String?   @default("ITJob Team")
+  read_time     Int?      @default(5)
+  is_published  Boolean?  @default(true)
+  published_at  DateTime? @default(now()) @db.Timestamp(6)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+}
+
+enum GenderEmployee {
+  Male
+  Female
+}
+
+enum InterviewScheduleStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}

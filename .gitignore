@@ -1,0 +1,50 @@
+.DS_Store
+.venv/
+node_modules/
+backend/uploads/
+
+# secrets
+frontend/.env
+.env
+.env.*
+
+# generated backend exports
+backend/exports/
+
+# recommendation heavy/generated files
+recommendation/dataset/
+recommendation/datasets/
+recommendation/output/
+recommendation/outputs/
+recommendation/**/output/
+recommendation/**/outputs/
+recommendation/**/cache/
+recommendation/**/.ipynb_checkpoints/
+
+# recommendation data files
+recommendation/**/*.parquet
+recommendation/**/*.xlsx
+recommendation/**/*.xls
+recommendation/**/*.csv
+
+# ML artifacts
+*.npy
+*.npz
+*.joblib
+*.pkl
+*.pickle
+
+# Python / notebook cache
+__pycache__/
+.ipynb_checkpoints/
+
+recommendation/dataset/
+recommendation/**/*.parquet
+recommendation/**/*.csv
+recommendation/**/*.xlsx
+recommendation/**/*.xls
+backend/exports/
+*.zip
+**/.venv/
+venv/
+env/
