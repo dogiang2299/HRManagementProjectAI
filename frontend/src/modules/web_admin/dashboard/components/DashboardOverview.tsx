@@ -75,6 +75,7 @@ const recruitmentStatusLabelMap: Record<RecruitmentItem["status"], string> = {
 };
 
 const statTitleMap: Record<string, string> = {
+  "Active Campaigns": "Active Campaigns",
   "Total Recruitments": "Total Recruitments",
   "Total Applications": "Total Applications",
   "Accepted Candidates": "Accepted Candidates",

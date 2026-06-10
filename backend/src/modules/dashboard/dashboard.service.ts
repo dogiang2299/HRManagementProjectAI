@@ -1,68 +1,89 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import {
+  buildRecruitmentCompanyWhere,
+  getDashboardPeriodStart,
+  isAcceptedApplicationStatus,
+  isDashboardScopeMatch,
+  resolveDashboardCompanyId,
+  type DashboardReportPeriod,
+  type DashboardReportScope,
+} from '../../common/utils/dashboard-filters.util';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private getActorRoles(actor?: any): string[] {
-    if (!actor) return [];
-    if (Array.isArray(actor.roles)) {
-      return actor.roles.filter((r: unknown) => typeof r === 'string') as string[];
-    }
-    if (typeof actor.actorRole === 'string') {
-      return [actor.actorRole];
-    }
-    return [];
-  }
+  async getOverview(
+    query: {
+      companyId?: string;
+      period?: DashboardReportPeriod;
+      scope?: DashboardReportScope;
+    },
+    actor?: any,
+  ) {
+    const period = query?.period || 'month';
+    const scope = query?.scope || 'all';
+    const resolvedCompanyId = resolveDashboardCompanyId(actor, query?.companyId);
+    const startAt = getDashboardPeriodStart(period);
 
-  private getCompanyIdForDashboard(actor?: any, requestedCompanyId?: string): string | undefined {
-    const roles = this.getActorRoles(actor).map((r) => r.toLowerCase());
-    const isEmployer = roles.includes('employer');
-
-    if (isEmployer) {
-      if (!actor?.company_id) {
-        throw new ForbiddenException('No company_id for employer');
-      }
-      return actor.company_id;
-    }
-
-    return requestedCompanyId;
-  }
-
-  async getOverview(companyId?: string, actor?: any) {
-    const resolvedCompanyId = this.getCompanyIdForDashboard(actor, companyId);
-
-    // Filter recruitment theo công ty
-    const recruitmentWhere: any = resolvedCompanyId
-      ? {
-          OR: [
-            { department_id: resolvedCompanyId },
-            { work_location_id: resolvedCompanyId },
-            { positionPost: { is: { unit_id: resolvedCompanyId } } },
-            { contactPerson: { is: { company_id: resolvedCompanyId } } },
-          ],
-        }
-      : {};
+    const recruitmentWhere = buildRecruitmentCompanyWhere(resolvedCompanyId);
 
     const recruitments = await this.prisma.recruitment_Infor.findMany({
       where: recruitmentWhere,
-      include: { recruitmentCosts: true, recruitmentPlans: true, positionPost: true },
+      select: {
+        id: true,
+        is_active: true,
+        created_at: true,
+        department: {
+          select: {
+            id: true,
+            full_name: true,
+            acronym_name: true,
+          },
+        },
+      },
     });
 
-    // Lấy danh sách recruitmentId để filter application
-    const recruitmentIds = recruitments.map((r) => r.id);
+    const scopedRecruitments = recruitments.filter((item) =>
+      isDashboardScopeMatch(scope, item.department),
+    );
 
-    const applications = await this.prisma.application.findMany({
-      where: recruitmentIds.length ? { recruitment_infor_id: { in: recruitmentIds } } : undefined,
-    });
+    const activeCampaigns = scopedRecruitments.filter((item) => {
+      if (!item.is_active) return false;
+      const createdAt = item.created_at ? new Date(item.created_at) : null;
+      return createdAt ? createdAt >= startAt : false;
+    }).length;
 
-    // TODO: Tính toán các số liệu tổng quan ở đây (statCards, applicationStatusData, ...)
-    // Demo trả về số lượng
+    const recruitmentIds = scopedRecruitments.map((item) => item.id);
+
+    const applications =
+      recruitmentIds.length > 0
+        ? await this.prisma.application.findMany({
+            where: {
+              recruitment_infor_id: { in: recruitmentIds },
+              created_at: { gte: startAt },
+            },
+            select: {
+              status: true,
+            },
+          })
+        : [];
+
+    const totalApplications = applications.length;
+    const acceptedCandidates = applications.filter((item) =>
+      isAcceptedApplicationStatus(item.status),
+    ).length;
+
     return {
-      totalRecruitments: recruitments.length,
-      totalApplications: applications.length,
-      // ...thêm các trường khác theo nhu cầu frontend
+      period,
+      scope,
+      companyId: resolvedCompanyId ?? null,
+      activeCampaigns,
+      totalRecruitments: activeCampaigns,
+      totalApplications,
+      acceptedCandidates,
+      generatedAt: new Date().toISOString(),
     };
   }
 }

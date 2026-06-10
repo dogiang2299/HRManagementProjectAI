@@ -3,6 +3,10 @@ import {
   Button,
   Flex,
   HStack,
+  Icon,
+  Input,
+  InputGroup,
+  InputLeftElement,
   SimpleGrid,
   Skeleton,
   Stack,
@@ -11,8 +15,9 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
-import { FiArrowRight } from "react-icons/fi";
+import { FiArrowRight, FiSearch } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import { useDebounce } from "use-debounce";
 import Pagination from "../../../../components/common/Pagination";
 import ITJobInfoSection from "../../home/components/ITJobInfoSection";
 import {
@@ -61,16 +66,21 @@ function getRecommendationDescription(job: RecommendedJobItem) {
 export default function RecommendedJobsPage() {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 8;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch] = useDebounce(searchQuery, 400);
+  const pageSize = 9;
+  const normalizedSearch = debouncedSearch.trim();
 
   const { data, isLoading } = useGetRecommendedJobs({
     page: currentPage,
     limit: pageSize,
+    search: normalizedSearch || undefined,
   });
 
   const jobs = data?.items || [];
   const candidateName = data?.candidate?.candidate_name;
   const totalPages = data?.pagination?.totalPages || 1;
+  const hasSearch = normalizedSearch.length > 0;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -124,6 +134,32 @@ export default function RecommendedJobsPage() {
                 : "Job listings are suggested from resumes, CVs and suitability."}
             </Text>
           </VStack>
+
+          <InputGroup w={{ base: "100%", md: "420px" }} size="lg">
+            <InputLeftElement pointerEvents="none">
+              <Icon as={FiSearch} color="#94A3B8" />
+            </InputLeftElement>
+            <Input
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search suggested jobs..."
+              bg="white"
+              borderColor="#DDE5F1"
+              borderRadius="16px"
+              color="#1E293B"
+              fontSize="15px"
+              fontWeight="600"
+              _placeholder={{ color: "#94A3B8", fontWeight: "500" }}
+              _hover={{ borderColor: "#CBD5E1" }}
+              _focusVisible={{
+                borderColor: "#334371",
+                boxShadow: "0 0 0 1px #334371",
+              }}
+            />
+          </InputGroup>
         </Flex>
 
         {isLoading ? (
@@ -152,11 +188,12 @@ export default function RecommendedJobsPage() {
             textAlign="center"
           >
             <Text fontSize="22px" fontWeight="700" color="#334371" mb={2}>
-              There are no suggested jobs
+              {hasSearch ? "No matching suggested jobs" : "There are no suggested jobs"}
             </Text>
             <Text fontSize="15px" color="#64748B" maxW="680px">
-              Please update your CV or profile to make the suggestion system more
-              accurate.
+              {hasSearch
+                ? "Try another job title, company, or position keyword."
+                : "Please update your CV or profile to make the suggestion system more accurate."}
             </Text>
           </Flex>
         ) : (
@@ -306,8 +343,8 @@ export default function RecommendedJobsPage() {
                               key={skill}
                               size="sm"
                               borderRadius="full"
-                              bg="#15803D"
-                              color="#15803D"
+                              bg="#f4efef"
+                              color="#334371"
                               px={3}
                               py={1.5}
                               fontSize="12px"

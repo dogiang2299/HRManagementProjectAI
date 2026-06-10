@@ -324,6 +324,10 @@ model Candidate {
   desired_rank_id      String?                      @db.Uuid
   preferred_job_type   String?                      @db.VarChar(100)
   employee_id          String?                      @unique @db.Uuid
+  current_country      String?                      @db.VarChar(100)
+  current_province     String?                      @db.VarChar(100)
+  current_district     String?                      @db.VarChar(100)
+  current_address      String?                      @db.VarChar(255)
   statusApplication    Application[]
   desiredPosition      Setting_Position_Posts?      @relation("CandidateDesiredPosition", fields: [desired_position_id], references: [id])
   desiredRank          Rank?                        @relation("CandidateDesiredRank", fields: [desired_rank_id], references: [id])
@@ -863,15 +867,50 @@ model SkillTaxonomyMapping {
   skill_id          String   @db.Uuid
   taxonomy_group    String   @db.VarChar(200)
   taxonomy_subgroup String?  @db.VarChar(200)
+  taxonomy_group_node_id    String?  @db.Uuid
+  taxonomy_subgroup_node_id String?  @db.Uuid
   source            String?  @db.VarChar(50)
   created_at        DateTime @default(now()) @db.Timestamp(6)
   updated_at        DateTime @updatedAt
   skill             Skill    @relation(fields: [skill_id], references: [id], onDelete: Cascade)
+  taxonomyGroupNode    SkillTaxonomyNode? @relation("SkillTaxonomyGroupNode", fields: [taxonomy_group_node_id], references: [id], onDelete: SetNull)
+  taxonomySubgroupNode SkillTaxonomyNode? @relation("SkillTaxonomySubgroupNode", fields: [taxonomy_subgroup_node_id], references: [id], onDelete: SetNull)
 
   @@unique([skill_id, taxonomy_group, taxonomy_subgroup])
   @@index([skill_id])
   @@index([taxonomy_group])
   @@index([taxonomy_subgroup])
+  @@index([taxonomy_group_node_id])
+  @@index([taxonomy_subgroup_node_id])
+}
+
+enum SkillTaxonomyNodeType {
+  GROUP
+  SUBGROUP
+}
+
+model SkillTaxonomyNode {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String               @db.VarChar(200)
+  normalized_key String               @db.VarChar(220)
+  parent_id      String?              @db.Uuid
+  level          Int
+  node_type      SkillTaxonomyNodeType
+  description    String?
+  sort_order     Int                  @default(0)
+  is_active      Boolean              @default(true)
+  created_at     DateTime             @default(now()) @db.Timestamp(6)
+  updated_at     DateTime             @updatedAt
+
+  parent         SkillTaxonomyNode?   @relation("SkillTaxonomyNodeTree", fields: [parent_id], references: [id], onDelete: SetNull)
+  children       SkillTaxonomyNode[]  @relation("SkillTaxonomyNodeTree")
+  groupMappings  SkillTaxonomyMapping[] @relation("SkillTaxonomyGroupNode")
+  subMappings    SkillTaxonomyMapping[] @relation("SkillTaxonomySubgroupNode")
+
+  @@unique([parent_id, normalized_key])
+  @@index([parent_id])
+  @@index([level])
+  @@index([node_type])
 }
 
 model BlogPost {

@@ -10,6 +10,7 @@ import {
   APPLICATION_STATUS_VALUES,
   type ApplicationStatusType,
 } from 'src/constant';
+import { resolveDashboardCompanyId } from 'src/common/utils/dashboard-filters.util';
 import { PrismaService } from 'src/prisma.service';
 import {
   CANDIDATE_CV_SOURCE_TYPE,
@@ -168,7 +169,10 @@ export class ApplicationService {
   private addEmployerScope(where: any, actor?: CandidateAuditActor) {
     const companyId = this.getEmployerCompanyId(actor);
     if (!companyId) return;
+    this.addApplicationRecruitmentCompanyScope(where, companyId);
+  }
 
+  private addApplicationRecruitmentCompanyScope(where: any, companyId: string) {
     where.AND = [
       ...(Array.isArray(where.AND) ? where.AND : []),
       {
@@ -182,6 +186,21 @@ export class ApplicationService {
         },
       },
     ];
+  }
+
+  private addReportCompanyScope(
+    where: any,
+    actor?: CandidateAuditActor,
+    requestedCompanyId?: string,
+  ) {
+    this.addEmployerScope(where, actor);
+
+    if (this.getEmployerCompanyId(actor)) return;
+
+    const reportCompanyId = resolveDashboardCompanyId(actor, requestedCompanyId);
+    if (reportCompanyId) {
+      this.addApplicationRecruitmentCompanyScope(where, reportCompanyId);
+    }
   }
 
   // Chuẩn hóa status về giá trị chuẩn trong APPLICATION_STATUS.
@@ -1501,7 +1520,7 @@ export class ApplicationService {
     const where: any = {
       created_at: { gte: startAt },
     };
-    this.addEmployerScope(where, actor);
+    this.addReportCompanyScope(where, actor, query?.companyId);
 
     const applications = await this.prisma.application.findMany({
       where,
@@ -1730,7 +1749,7 @@ export class ApplicationService {
     const now = new Date();
 
     const where: any = { created_at: { gte: startAt } };
-    this.addEmployerScope(where, actor);
+    this.addReportCompanyScope(where, actor, query?.companyId);
 
     const applications = await this.prisma.application.findMany({
       where,

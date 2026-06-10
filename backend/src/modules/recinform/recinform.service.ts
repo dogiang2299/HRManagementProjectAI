@@ -20,10 +20,17 @@ import type {
   RecruitmentPlanScope,
 } from './dto/plan-query';
 import { Prisma, Recruitment_Infor } from '@prisma/client';
+import {
+  buildRecruitmentCompanyWhere,
+  resolveDashboardCompanyId,
+} from 'src/common/utils/dashboard-filters.util';
+import { RecommendationEngineService } from '../recommend/recommendation-engine.service';
 @Injectable()
 export class RecinformService {
   constructor(
-  private readonly prismaService: PrismaService) {}
+  private readonly prismaService: PrismaService,
+  private readonly recommendationEngineService: RecommendationEngineService,
+) {}
 
   private getActorRoles(actor?: any): string[] {
     if (!actor) return [];
@@ -84,30 +91,60 @@ export class RecinformService {
     return normalized;
   }
 
+  private async rebuildRecommendationForPublicRecruitment(
+    recruitment: { id?: string | null; status?: string | null } | null,
+  ) {
+    if (!recruitment?.id) return;
+
+    if (this.normalizeStatus(recruitment.status) !== 'PUBLIC') return;
+
+    try {
+      await this.recommendationEngineService.rebuildJobRecommendation(
+        recruitment.id,
+      );
+    } catch (error: any) {
+      console.error(
+        '[RecommendationEngine] Failed to rebuild job recommendation after recruitment save:',
+        error?.message || String(error),
+      );
+    }
+  }
+
   private normalizeRecruitmentSkills(
     skills?: CreateRecruitmentInforDto['skills'],
+    skillIds?: CreateRecruitmentInforDto['skill_ids'],
   ) {
-    if (!Array.isArray(skills)) return [];
-
     const bySkillId = new Map<
       string,
       { skill_id: string; level: number; is_required: boolean }
     >();
 
-    for (const item of skills) {
-      const skillId = item?.skill_id?.trim();
-      if (!skillId) continue;
+    if (Array.isArray(skills) && skills.length) {
+      for (const item of skills) {
+        const skillId = item?.skill_id?.trim();
+        if (!skillId) continue;
 
-      const rawLevel = Number(item.level ?? 1);
-      const level = Number.isFinite(rawLevel)
-        ? Math.max(1, Math.min(5, Math.round(rawLevel)))
-        : 1;
+        const rawLevel = Number(item.level ?? 1);
+        const level = Number.isFinite(rawLevel)
+          ? Math.max(1, Math.min(5, Math.round(rawLevel)))
+          : 1;
 
-      bySkillId.set(skillId, {
-        skill_id: skillId,
-        level,
-        is_required: item.is_required ?? true,
-      });
+        bySkillId.set(skillId, {
+          skill_id: skillId,
+          level,
+          is_required: item.is_required ?? true,
+        });
+      }
+    } else if (Array.isArray(skillIds) && skillIds.length) {
+      for (const skillIdRaw of skillIds) {
+        const skillId = String(skillIdRaw || '').trim();
+        if (!skillId) continue;
+        bySkillId.set(skillId, {
+          skill_id: skillId,
+          level: 1,
+          is_required: true,
+        });
+      }
     }
 
     return Array.from(bySkillId.values());
@@ -165,8 +202,9 @@ export class RecinformService {
     positionPostId?: string | null,
     skills?: CreateRecruitmentInforDto['skills'],
     companyId?: string | null,
+    skillIds?: CreateRecruitmentInforDto['skill_ids'],
   ) {
-    const manualSkills = this.normalizeRecruitmentSkills(skills);
+    const manualSkills = this.normalizeRecruitmentSkills(skills, skillIds);
 
     await tx.recruitmentSkill.deleteMany({
       where: {
@@ -175,6 +213,25 @@ export class RecinformService {
     });
 
     if (manualSkills.length) {
+      const uniqueSkillIds = Array.from(
+        new Set(manualSkills.map((item) => item.skill_id)),
+      );
+      const existingSkills = await tx.skill.findMany({
+        where: {
+          id: { in: uniqueSkillIds },
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      const existingSet = new Set(existingSkills.map((s) => s.id));
+      const invalid = uniqueSkillIds.filter((id) => !existingSet.has(id));
+      if (invalid.length) {
+        throw new HttpException(
+          `Invalid or inactive skills: ${invalid.join(', ')}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       await tx.recruitmentSkill.createMany({
         data: manualSkills.map((item) => ({
           recruitment_id: recruitmentId,
@@ -232,12 +289,32 @@ export class RecinformService {
           select: {
             id: true,
             name: true,
+            description: true,
+            is_active: true,
             parent_id: true,
             parent: {
               select: {
                 id: true,
                 name: true,
               },
+            },
+            aliases: {
+              select: { id: true, alias_text: true },
+              orderBy: { alias_text: 'asc' as const },
+            },
+            taxonomyMappings: {
+              select: {
+                id: true,
+                taxonomy_group: true,
+                taxonomy_subgroup: true,
+                taxonomy_group_node_id: true,
+                taxonomy_subgroup_node_id: true,
+                source: true,
+              },
+              orderBy: [
+                { taxonomy_group: 'asc' as const },
+                { taxonomy_subgroup: 'asc' as const },
+              ],
             },
           },
         },
@@ -468,12 +545,13 @@ export class RecinformService {
     const startAt = this.resolvePeriodStart(period);
     const now = new Date();
 
+    const resolvedCompanyId = resolveDashboardCompanyId(actor, query?.companyId);
     const whereCondition: any = {
       created_at: {
         gte: startAt,
       },
+      ...buildRecruitmentCompanyWhere(resolvedCompanyId),
     };
-    this.applyEmployerCompanyScope(whereCondition, actor);
 
     const recruitments = await this.prismaService.recruitment_Infor.findMany({
       where: whereCondition,
@@ -733,8 +811,11 @@ export class RecinformService {
     const startAt = this.resolvePeriodStart(period);
     const now = new Date();
 
-    const whereCondition: any = { created_at: { gte: startAt } };
-    this.applyEmployerCompanyScope(whereCondition, actor);
+    const resolvedCompanyId = resolveDashboardCompanyId(actor, query?.companyId);
+    const whereCondition: any = {
+      created_at: { gte: startAt },
+      ...buildRecruitmentCompanyWhere(resolvedCompanyId),
+    };
 
     const recruitments = await this.prismaService.recruitment_Infor.findMany({
       where: whereCondition,
@@ -1019,9 +1100,9 @@ export class RecinformService {
   }
 
 async create(data: CreateRecruitmentInforDto, actor?: any) {
-  const { plan, other_costs, skills, recruitment_code, ...rest } = data;
+  const { plan, other_costs, skills, skill_ids, recruitment_code, ...rest } = data;
 
-  return this.prismaService.$transaction(async (tx) => {
+  const created = await this.prismaService.$transaction(async (tx) => {
     const rec = await tx.recruitment_Infor.create({
       data: {
         ...rest,
@@ -1109,9 +1190,10 @@ async create(data: CreateRecruitmentInforDto, actor?: any) {
       rec.position_post_id,
       skills,
       companyId,
+      skill_ids,
     );
 
-    return tx.recruitment_Infor.findUnique({
+    const full = await tx.recruitment_Infor.findUnique({
       where: { id: rec.id },
       include: {
         recruitmentPlans: {
@@ -1130,7 +1212,33 @@ async create(data: CreateRecruitmentInforDto, actor?: any) {
         workLocation: { select: { id: true, full_name: true, short_address: true } },
       },
     });
+
+    if (!full) return full;
+
+    const mappedSkillIds = (full.recruitmentSkills ?? [])
+      .map((row: any) => row?.skill_id || row?.skill?.id)
+      .filter(Boolean) as string[];
+    const missingTaxonomy = mappedSkillIds.length
+      ? await tx.skillTaxonomyMapping.findMany({
+          where: { skill_id: { in: mappedSkillIds } },
+          select: { skill_id: true },
+          distinct: ['skill_id'],
+        })
+      : [];
+    const hasTaxonomySet = new Set(missingTaxonomy.map((m) => m.skill_id));
+    const missingTaxonomySkillIds = mappedSkillIds.filter((id) => !hasTaxonomySet.has(id));
+
+    return {
+      ...full,
+      skill_warnings: {
+        missing_taxonomy_skill_ids: missingTaxonomySkillIds,
+      },
+    };
   });
+
+  await this.rebuildRecommendationForPublicRecruitment(created);
+
+  return created;
 }
 
   async getAllWithRole(
@@ -1327,7 +1435,7 @@ async update(id: string, data: UpdateRecruitmentInforDto, actor?: any) {
       HttpStatus.BAD_REQUEST,
     );
 
-  const { other_costs, plan, skills, ...info } = data;
+  const { other_costs, plan, skills, skill_ids, ...info } = data;
 
   const dataUpdate: any = { ...info };
   dataUpdate.status = this.normalizeStatus(dataUpdate.status);
@@ -1335,7 +1443,7 @@ async update(id: string, data: UpdateRecruitmentInforDto, actor?: any) {
   dataUpdate.is_active = true;
 
   try {
-    return await this.prismaService.$transaction(async (tx) => {
+    const updated = await this.prismaService.$transaction(async (tx) => {
     await tx.recruitment_Infor.update({
       where: { id },
       data: {
@@ -1452,9 +1560,10 @@ async update(id: string, data: UpdateRecruitmentInforDto, actor?: any) {
       rec?.position_post_id,
       skills,
       companyId,
+      skill_ids,
     );
 
-    return tx.recruitment_Infor.findUnique({
+    const full = await tx.recruitment_Infor.findUnique({
       where: { id },
       include: {
         recruitmentPlans: {
@@ -1481,7 +1590,33 @@ async update(id: string, data: UpdateRecruitmentInforDto, actor?: any) {
         recruitmentSkills: this.getRecruitmentSkillsInclude(),
       },
     });
+
+    if (!full) return full;
+
+    const mappedSkillIds = (full.recruitmentSkills ?? [])
+      .map((row: any) => row?.skill_id || row?.skill?.id)
+      .filter(Boolean) as string[];
+    const taxonomyRows = mappedSkillIds.length
+      ? await tx.skillTaxonomyMapping.findMany({
+          where: { skill_id: { in: mappedSkillIds } },
+          select: { skill_id: true },
+          distinct: ['skill_id'],
+        })
+      : [];
+    const hasTaxonomySet = new Set(taxonomyRows.map((m) => m.skill_id));
+    const missingTaxonomySkillIds = mappedSkillIds.filter((id) => !hasTaxonomySet.has(id));
+
+    return {
+      ...full,
+      skill_warnings: {
+        missing_taxonomy_skill_ids: missingTaxonomySkillIds,
+      },
+    };
   });
+
+  await this.rebuildRecommendationForPublicRecruitment(updated);
+
+  return updated;
   } catch (error: any) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {

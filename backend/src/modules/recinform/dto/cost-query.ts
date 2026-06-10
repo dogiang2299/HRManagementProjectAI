@@ -4,4 +4,5 @@ export type RecruitmentCostScope = "all" | "tech" | "operations";
 export class RecruitmentCostQueryDto {
   period?: RecruitmentCostPeriod;
   scope?: RecruitmentCostScope;
+  companyId?: string;
 }

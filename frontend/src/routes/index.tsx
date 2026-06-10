@@ -52,6 +52,7 @@ import {
   sendEmailUrl,
   settingUrl,
   skillsUrl,
+  positionSkillMappingUrl,
   mailServerUrl,
   generalUrl,
   advancedUrl,
@@ -70,6 +71,7 @@ import { GroupPositionPost } from "../modules/web_admin/setting/group_position_p
 import { Rank } from "../modules/web_admin/setting/rank/views/Rank";
 import { SendEmail } from "../modules/web_admin/setting/send_email/views/Email";
 import { Skill } from "../modules/web_admin/setting/skill/views/Skill";
+import { PositionSkillMapping } from "../modules/web_admin/setting/skill/views/PositionSkillMapping";
 
 import ProtectedRoute from "../modules/auth/components/ProtectedRoute";
 import MainLayout from "../components/layout/MainLayout";
@@ -461,6 +463,14 @@ export const createRouterConfig = () => {
             </ProtectedRoute>
           )
         }, 
+        {
+          path: positionSkillMappingUrl,
+          element: (
+            <ProtectedRoute allowedRoles={[Admin, Employee, Employer]}>
+              <PositionSkillMapping />
+            </ProtectedRoute>
+          )
+        },
         {
           path: settingUrl,
           element: (

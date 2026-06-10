@@ -274,8 +274,6 @@ export default function EmployeeModal({
 
     const roles = rolesQuery.data?.data ?? [];
 
-    console.log("data.roles:", data?.roles);
-    console.log("mapped:", (data?.roles ?? []).map((x:any) => x?.role?.id ?? x?.id_role ?? x?.id));
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />

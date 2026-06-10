@@ -204,7 +204,7 @@ export default function JobList() {
             <Icon as={FiSearch} color="#94A3B8" />
           </InputLeftElement>
           <Input
-            placeholder="Tìm kiếm việc làm..."
+            placeholder="Search jobs at here ......"
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             borderRadius="14px"

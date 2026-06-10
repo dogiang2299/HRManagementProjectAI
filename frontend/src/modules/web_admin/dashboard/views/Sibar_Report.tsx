@@ -22,25 +22,39 @@ import { useAuthStore } from "../../../auth/store/auth.store";
 // Type-only imports for adapter
 import type { DashboardOverviewResponse } from "../api/get_overview";
 import type { DashboardOverviewData, DashboardStatCard } from "../types";
+const periodNoteMap: Record<DashboardPeriod, string> = {
+  month: "This month",
+  quarter: "This quarter",
+  ytd: "Year to date",
+};
+
 // Adapter: convert API response to DashboardOverviewData
 function toDashboardOverviewData(res?: DashboardOverviewResponse): DashboardOverviewData | undefined {
   if (!res) return undefined;
-  // Map API fields to statCards and other DashboardOverviewData fields
+
+  const periodNote = periodNoteMap[res.period] || "Selected period";
+
   const statCards: DashboardStatCard[] = [
     {
-      title: "Total Recruitments",
-      value: String(res.totalRecruitments ?? "--"),
-      change: "0%", // fake or default value
-      note: "Total recruitment postings",
+      title: "Active Campaigns",
+      value: String(res.activeCampaigns ?? 0),
+      change: periodNote,
+      note: "Active postings created in the selected period",
     },
     {
       title: "Total Applications",
-      value: String(res.totalApplications ?? "--"),
-      change: "0%",
-      note: "Total applications",
+      value: String(res.totalApplications ?? 0),
+      change: periodNote,
+      note: "Applications submitted in the selected period",
     },
-    // Add more cards if needed
+    {
+      title: "Accepted Candidates",
+      value: String(res.acceptedCandidates ?? 0),
+      change: periodNote,
+      note: "Applications marked as accepted in the selected period",
+    },
   ];
+
   return {
     statCards,
     applicationStatusData: [],
@@ -48,7 +62,7 @@ function toDashboardOverviewData(res?: DashboardOverviewResponse): DashboardOver
     recruitmentCostData: [],
     planProgressData: [],
     recentRecruitments: [],
-    updatedAt: new Date().toISOString(),
+    updatedAt: res.generatedAt || new Date().toISOString(),
   };
 }
 
@@ -93,8 +107,8 @@ export default function RecruitmentDashboardMockupTSX() {
   const [activeTab, setActiveTab] = React.useState<ReportTabKey>("dashboard");
   const [activePeriod, setActivePeriod] = React.useState<(typeof periodOptions)[number]>(periodOptions[0]);
   const [activeScope, setActiveScope] = React.useState<(typeof scopeOptions)[number]>(scopeOptions[0]);
-  const isOverviewTab = activeTab === "dashboard";
   const isPerformanceTab = activeTab === "performance";
+  const isOverviewTab = activeTab === "dashboard";
   const isCostTab = activeTab === "cost";
   const isPlanTab = activeTab === "plan";
   const isRejectedTab = activeTab === "rejected";
@@ -113,90 +127,79 @@ export default function RecruitmentDashboardMockupTSX() {
         ? "operations"
         : "all";
 
+  const kpiParams = {
+    companyId: selectedCompany || undefined,
+    period: periodParam,
+    scope: scopeParam,
+  };
+
   const {
     data: overviewData,
     isLoading: isOverviewLoading,
     isError: isOverviewError,
-  } = useDashboardOverview(
-    { companyId: selectedCompany || undefined },
-    { enabled: isOverviewTab }
-  );
+  } = useDashboardOverview(kpiParams);
 
   const {
     data: performanceData,
     isLoading: isPerformanceLoading,
     isError: isPerformanceError,
-  } = useDashboardPerformance(
-    {
-      period: periodParam,
-      scope: scopeParam,
-      companyId: selectedCompany || undefined,
-    },
-    {
-      enabled: isPerformanceTab,
-    },
-  );
+  } = useDashboardPerformance(kpiParams, {
+    enabled: isPerformanceTab,
+  });
 
   const {
     data: costData,
     isLoading: isCostLoading,
     isError: isCostError,
-  } = useDashboardCost(
-    {
-      period: periodParam,
-      scope: scopeParam,
-      companyId: selectedCompany || undefined,
-    },
-    {
-      enabled: isCostTab,
-    },
-  );
+  } = useDashboardCost(kpiParams, {
+    enabled: isCostTab,
+  });
 
   const {
     data: planData,
     isLoading: isPlanLoading,
     isError: isPlanError,
-  } = useDashboardPlan(
-    {
-      period: periodParam,
-      scope: scopeParam,
-      companyId: selectedCompany || undefined,
-    },
-    {
-      enabled: isPlanTab,
-    },
-  );
+  } = useDashboardPlan(kpiParams, {
+    enabled: isPlanTab,
+  });
 
   const {
     data: rejectedData,
     isLoading: isRejectedLoading,
     isError: isRejectedError,
-  } = useDashboardRejected(
-    {
-      period: periodParam,
-      scope: scopeParam,
-      companyId: selectedCompany || undefined,
-    },
-    {
-      enabled: isRejectedTab,
-    },
-  );
+  } = useDashboardRejected(kpiParams, {
+    enabled: isRejectedTab,
+  });
 
   // Convert API response to DashboardOverviewData for component
   const overviewDataForComponent = toDashboardOverviewData(overviewData);
 
   const statHighlights = React.useMemo(() => {
-    const cardMap = new Map((overviewDataForComponent?.statCards || []).map((card: DashboardStatCard) => [card.title, card.value]));
-    const getValue = (...keys: string[]) => {
-      const val = keys.map((key) => cardMap.get(key)).find(Boolean);
-      return typeof val === "string" || typeof val === "number" ? val : "--";
-    };
+    if (overviewData) {
+      return [
+        { label: "Active Campaigns", value: String(overviewData.activeCampaigns ?? 0) },
+        { label: "Applications", value: String(overviewData.totalApplications ?? 0) },
+        {
+          label: "Accepted Candidates",
+          value: String(overviewData.acceptedCandidates ?? 0),
+        },
+      ];
+    }
+
+    if (isOverviewLoading) {
+      return [
+        { label: "Active Campaigns", value: "..." },
+        { label: "Applications", value: "..." },
+        { label: "Accepted Candidates", value: "..." },
+      ];
+    }
+
     return [
-      { label: "Active Campaigns", value: getValue("Total Recruitments", "Total recruitment postings") },
-      { label: "Applications", value: getValue("Total Applications", "Total applications") },
-      { label: "Accepted Candidates", value: getValue("Accepted Candidates", "Accepted candidates") },
+      { label: "Active Campaigns", value: "--" },
+      { label: "Applications", value: "--" },
+      { label: "Accepted Candidates", value: "--" },
     ];
-  }, [overviewDataForComponent?.statCards]);
+  }, [overviewData, isOverviewLoading]);
 
   const activeLabel = sibarItems.find((item) => item.key === activeTab)?.label ?? "Overview";
 

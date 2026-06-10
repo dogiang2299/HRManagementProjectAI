@@ -31,6 +31,7 @@ import {
   candidateChangePasswordUrl,
   candidateEmployeeContactCandidate,
   candidateBlogsUrl,
+  candidateCreateCvUrl,
 } from "../../../routes/urls";
 import { logo } from "../../../assets/logo";
 // import AiChatWidget from "../ai_chat/components/AiChatWidget";
@@ -73,7 +74,8 @@ const CandidateLayout = () => {
   const isEmployerInvitationsPage = location.pathname.startsWith(candidateEmployeeContactCandidate);
   const isMyApplicationsPage = location.pathname.startsWith(candidateApplicationsUrl);
   const isBlogsPage = location.pathname.startsWith(candidateBlogsUrl);
-  
+  const isCreateCvPage = location.pathname.startsWith(candidateCreateCvUrl);
+
   const shouldHideBanner =
     isJobDetailPage ||
     isJobsByGroupPage ||
@@ -93,7 +95,8 @@ const CandidateLayout = () => {
     isChangePasswordPage ||
     isMyApplicationsPage ||
     isEmployerInvitationsPage ||
-    isBlogsPage;
+    isBlogsPage ||
+    isCreateCvPage;
 
   const user = isLoggedIn
     ? {

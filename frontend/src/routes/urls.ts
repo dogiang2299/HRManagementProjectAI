@@ -28,6 +28,7 @@ export const settingUrl = '/setting';
 export const rankUrl = '/rank';
 export const sendEmailUrl = '/send-email';
 export const skillsUrl = '/skills';
+export const positionSkillMappingUrl = '/position-skill-mapping';
 export const typeScheUrl = '/type-sche';
 export const typescheLinkUrl = '/typesche-link';
 

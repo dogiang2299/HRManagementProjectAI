@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session # là cổng để kết nối FastAPI đọc
 
 from app.services.cv_text_service import extract_cv_text
 from app.services.embedding_service import MODEL_NAME, encode_text
+from app.services.experience_extraction_service import extract_total_experience_months_from_text
 from app.services.position_matching_service import extract_positions_from_text
 from app.services.skill_matching_service import extract_skills_from_text
 from app.services.text_cleaning_service import normalize_text
@@ -115,6 +116,7 @@ def sync_candidate_profile(candidate_id: str, db: Session, commit: bool = True) 
         raw_text = build_candidate_fallback_text(dict(candidate))
 
     normalized_text = normalize_text(raw_text)
+    extracted_experience_months = extract_total_experience_months_from_text(raw_text)
     matched_skills = extract_skills_from_text(raw_text, db)
     matched_positions = extract_positions_from_text(raw_text, db)
 
@@ -232,6 +234,8 @@ def sync_candidate_profile(candidate_id: str, db: Session, commit: bool = True) 
         "text_length": len(raw_text),
         "n_matched_skills": len(set(skill_ids)),
         "n_matched_positions": len(set(position_ids)),
+        "extracted_experience_months": extracted_experience_months,
+        "extracted_experience_years": round(extracted_experience_months / 12, 2) if extracted_experience_months > 0 else None,
         "embedding_dimension": len(vector),
         "matched_skills": matched_skills,
         "matched_positions": matched_positions,

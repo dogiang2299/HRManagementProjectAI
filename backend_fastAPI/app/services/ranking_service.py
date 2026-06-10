@@ -56,10 +56,10 @@ def get_candidate_context(candidate_id: str, db: Session) -> Dict[str, Any]:
             SELECT
                 c.id,
                 c.candidate_name,
-                c.address,
-                c.country,
-                c.provice,
-                c.district,
+                c.current_country,
+                c.current_province,
+                c.current_district,
+                c.current_address,
                 c.desired_position_id,
                 c.desired_rank_id,
                 c.preferred_job_type,
@@ -97,10 +97,10 @@ def get_candidate_context(candidate_id: str, db: Session) -> Dict[str, Any]:
     return {
         "id": str(candidate["id"]),
         "candidate_name": candidate["candidate_name"],
-        "address": candidate["address"],
-        "country": candidate["country"],
-        "province": candidate["provice"],
-        "district": candidate["district"],
+        "current_country": candidate["current_country"],
+        "current_province": candidate["current_province"],
+        "current_district": candidate["current_district"],
+        "current_address": candidate["current_address"],
         "desired_position_id": str(candidate["desired_position_id"]) if candidate["desired_position_id"] else None,
         "desired_rank_id": str(candidate["desired_rank_id"]) if candidate["desired_rank_id"] else None,
         "preferred_job_type": candidate["preferred_job_type"],
@@ -380,6 +380,20 @@ def normalize_location_text(value: Optional[str]) -> str:
     return aliases.get(value, value)
 
 
+def build_candidate_current_location(candidate: Dict[str, Any]) -> str:
+    """Join current residence fields for location matching (tạm trú / nơi ở hiện tại)."""
+    return " ".join(
+        str(x)
+        for x in [
+            candidate.get("current_province"),
+            candidate.get("current_district"),
+            candidate.get("current_address"),
+            candidate.get("current_country"),
+        ]
+        if x
+    )
+
+
 def compute_location_score(candidate: Dict[str, Any], job: Dict[str, Any]) -> float:
     job_type = normalize_job_type(job.get("type_of_job"))
 
@@ -387,15 +401,7 @@ def compute_location_score(candidate: Dict[str, Any], job: Dict[str, Any]) -> fl
     if job_type == "remote":
         return 1.0
 
-    candidate_location = " ".join(
-        str(x)
-        for x in [
-            candidate.get("province"),
-            candidate.get("district"),
-            candidate.get("address"),
-        ]
-        if x
-    )
+    candidate_location = build_candidate_current_location(candidate)
 
     job_location = " ".join(
         str(x)
@@ -737,6 +743,11 @@ def rank_jobs_for_candidate(candidate_id: str, db: Session) -> Dict[str, Any]:
         "candidate_id": candidate_id,
         "candidate_name": candidate["candidate_name"],
         "candidate_experience_years": candidate_experience_years,
+        "candidate_current_location": build_candidate_current_location(candidate),
+        "current_country": candidate.get("current_country"),
+        "current_province": candidate.get("current_province"),
+        "current_district": candidate.get("current_district"),
+        "current_address": candidate.get("current_address"),
         "n_ranked_jobs": len(results),
         "items": results[:20],
     }
@@ -964,6 +975,11 @@ def rank_candidates_for_job(
         results.append({
             "candidate_id": candidate_id,
             "candidate_name": candidate["candidate_name"],
+            "candidate_current_location": build_candidate_current_location(candidate),
+            "current_country": candidate.get("current_country"),
+            "current_province": candidate.get("current_province"),
+            "current_district": candidate.get("current_district"),
+            "current_address": candidate.get("current_address"),
             "skill_overlap_score": skill_overlap_score,
             "group_similarity_score": group_similarity_score,
             "dominant_group_score": dominant_group_score,

@@ -4,4 +4,5 @@ export type ApplicationPerformanceScope = "all" | "tech" | "operations";
 export class ApplicationPerformanceQueryDto {
   period?: ApplicationPerformancePeriod;
   scope?: ApplicationPerformanceScope;
+  companyId?: string;
 }

@@ -27,6 +27,8 @@ def get_skill_taxonomy_map(
         text("""
             SELECT
                 skill_id::text AS skill_id,
+                taxonomy_group_node_id::text AS taxonomy_group_node_id,
+                taxonomy_subgroup_node_id::text AS taxonomy_subgroup_node_id,
                 taxonomy_group,
                 taxonomy_subgroup
             FROM "SkillTaxonomyMapping"
@@ -40,9 +42,21 @@ def get_skill_taxonomy_map(
     result = {}
 
     for row in rows:
+        taxonomy_group_node_id = row.get("taxonomy_group_node_id")
+        taxonomy_subgroup_node_id = row.get("taxonomy_subgroup_node_id")
+        taxonomy_group = row.get("taxonomy_group")
+        taxonomy_subgroup = row.get("taxonomy_subgroup")
+
+        group_key = taxonomy_group_node_id or taxonomy_group
+        subgroup_key = taxonomy_subgroup_node_id or taxonomy_subgroup
+
         result[str(row["skill_id"])] = {
-            "taxonomy_group": row["taxonomy_group"],
-            "taxonomy_subgroup": row["taxonomy_subgroup"],
+            "taxonomy_group": taxonomy_group,
+            "taxonomy_subgroup": taxonomy_subgroup,
+            "taxonomy_group_node_id": taxonomy_group_node_id,
+            "taxonomy_subgroup_node_id": taxonomy_subgroup_node_id,
+            "group_key": group_key,
+            "subgroup_key": subgroup_key,
         }
 
     return result
@@ -57,8 +71,8 @@ def get_taxonomy_groups(
     for skill_id in skill_ids:
         taxonomy = skill_taxonomy_map.get(str(skill_id))
 
-        if taxonomy and taxonomy.get("taxonomy_group"):
-            groups.add(str(taxonomy["taxonomy_group"]))
+        if taxonomy and taxonomy.get("group_key"):
+            groups.add(str(taxonomy["group_key"]))
 
     return groups
 
@@ -72,8 +86,8 @@ def get_taxonomy_subgroups(
     for skill_id in skill_ids:
         taxonomy = skill_taxonomy_map.get(str(skill_id))
 
-        if taxonomy and taxonomy.get("taxonomy_subgroup"):
-            subgroups.add(str(taxonomy["taxonomy_subgroup"]))
+        if taxonomy and taxonomy.get("subgroup_key"):
+            subgroups.add(str(taxonomy["subgroup_key"]))
 
     return subgroups
 
@@ -87,8 +101,8 @@ def get_dominant_taxonomy_group(
     for skill_id in skill_ids:
         taxonomy = skill_taxonomy_map.get(str(skill_id))
 
-        if taxonomy and taxonomy.get("taxonomy_group"):
-            counter[str(taxonomy["taxonomy_group"])] += 1
+        if taxonomy and taxonomy.get("group_key"):
+            counter[str(taxonomy["group_key"])] += 1
 
     if not counter:
         return None
@@ -125,6 +139,37 @@ def compute_taxonomy_scores(
     all_skill_ids = set(candidate_skill_ids).union(set(job_skill_ids))
 
     skill_taxonomy_map = get_skill_taxonomy_map(all_skill_ids, db)
+    mapped_skill_ids = set(skill_taxonomy_map.keys())
+    missing_taxonomy_mapping = len(all_skill_ids.difference(mapped_skill_ids))
+
+    group_node_used = 0
+    group_text_fallback = 0
+    subgroup_node_used = 0
+    subgroup_text_fallback = 0
+
+    for taxonomy in skill_taxonomy_map.values():
+        if taxonomy.get("taxonomy_group_node_id"):
+            group_node_used += 1
+        elif taxonomy.get("taxonomy_group"):
+            group_text_fallback += 1
+
+        if taxonomy.get("taxonomy_subgroup_node_id"):
+            subgroup_node_used += 1
+        elif taxonomy.get("taxonomy_subgroup"):
+            subgroup_text_fallback += 1
+
+    # Light debug counters for Phase 4 rollout (no scoring impact).
+    # Do not log IDs or sensitive data.
+    try:
+        print(
+            "[TaxonomyScoring] "
+            f"skills={len(all_skill_ids)} mapped={len(mapped_skill_ids)} missing_mapping={missing_taxonomy_mapping} "
+            f"group_node={group_node_used} group_text_fallback={group_text_fallback} "
+            f"subgroup_node={subgroup_node_used} subgroup_text_fallback={subgroup_text_fallback}"
+        )
+    except Exception:
+        # Never crash ranking due to logging.
+        pass
 
     candidate_groups = get_taxonomy_groups(candidate_skill_ids, skill_taxonomy_map)
     job_groups = get_taxonomy_groups(job_skill_ids, skill_taxonomy_map)

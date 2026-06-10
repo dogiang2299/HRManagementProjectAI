@@ -5,6 +5,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { buildRecommendationMatchDetail } from './recommend-match-detail.builder';
+
+const MIN_RECOMMENDATION_SCORE = 0.45;
+
 type ActorLike = {
   actorEmployeeId?: string;
   actorRole?: string;
@@ -40,7 +43,7 @@ export class RecommendationService {
   }
   async getStoredRecommendationsForCurrentCandidate(
     actor: ActorLike,
-    options: { page?: number; limit?: number } = {},
+    options: { page?: number; limit?: number; search?: string } = {},
   ) {
     const requestedPage =
       Number.isFinite(options.page) && (options.page ?? 0) > 0
@@ -133,6 +136,7 @@ export class RecommendationService {
       candidate.id,
       requestedPage,
       limit,
+      { search: options.search },
     );
 
     return {
@@ -150,10 +154,36 @@ export class RecommendationService {
     candidateId: string,
     page = 1,
     limit = 9,
+    options: { search?: string } = {},
   ) {
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.max(Number(limit) || 9, 1);
     const offset = (safePage - 1) * safeLimit;
+    const search = options.search?.trim().slice(0, 100) || '';
+    const queryParams: unknown[] = [candidateId];
+    const searchClause = search
+      ? `
+      AND (
+        r.post_title ILIKE $2
+        OR r.internal_title ILIKE $2
+        OR p.name_post ILIKE $2
+        OR g.name_group ILIKE $2
+        OR d.full_name ILIKE $2
+      )`
+      : '';
+
+    if (search) {
+      queryParams.push(`%${search}%`);
+    }
+
+    const relevantRecommendationClause = `
+      AND COALESCE(rec.final_score, 0) >= ${MIN_RECOMMENDATION_SCORE}
+      AND (
+        COALESCE(array_length(rec.matched_skill_ids, 1), 0) > 0
+        OR COALESCE(rec.position_score, 0) > 0
+        OR COALESCE(rec.skill_overlap_score, 0) >= 0.15
+      )
+    `;
 
     const items = await this.prisma.$queryRawUnsafe<any[]>(`
     SELECT
@@ -174,6 +204,10 @@ export class RecommendationService {
       rec.model_name,
       rec.calculated_at,
       rec.experience_score,
+      rec.position_score,
+      rec.rank_score,
+      rec.job_type_score,
+      rec.location_score,
       r.id AS job_id,
       r.post_title,
       r.internal_title,
@@ -222,23 +256,33 @@ export class RecommendationService {
       ON d.id = r.department_id
     LEFT JOIN "InforCompany" wl
       ON wl.id = r.work_location_id
-    WHERE rec.candidate_id = '${candidateId}'
+    WHERE rec.candidate_id = $1
       AND r.is_active = true
       AND r.status = 'PUBLIC'
+      ${relevantRecommendationClause}
+      ${searchClause}
     ORDER BY rec.final_score DESC
     LIMIT ${safeLimit}
     OFFSET ${offset}
-  `);
+  `, ...queryParams);
 
     const countResult = await this.prisma.$queryRawUnsafe<any[]>(`
     SELECT COUNT(*)::int AS total
     FROM "CandidateJobRecommendation" rec
     JOIN "Recruitment_Infor" r
       ON r.id = rec.recruitment_infor_id
-    WHERE rec.candidate_id = '${candidateId}'
+    LEFT JOIN "Setting_Position_Posts" p
+      ON p.id = r.position_post_id
+    LEFT JOIN "Position_Group" g
+      ON g.id = p.group_id
+    LEFT JOIN "InforCompany" d
+      ON d.id = r.department_id
+    WHERE rec.candidate_id = $1
       AND r.is_active = true
       AND r.status = 'PUBLIC'
-  `);
+      ${relevantRecommendationClause}
+      ${searchClause}
+  `, ...queryParams);
     const allSkillIds = items.flatMap((row) => [
       ...(row.matched_skill_ids ?? []),
       ...(row.missing_skill_ids ?? []),
@@ -306,6 +350,10 @@ export class RecommendationService {
             semanticScore: Number(row.semantic_score ?? 0),
             hybridScore: Number(row.hybrid_score ?? 0),
             experienceScore: Number(row.experience_score ?? 0),
+            positionScore: Number(row.position_score ?? 0),
+            rankScore: Number(row.rank_score ?? 0),
+            jobTypeScore: Number(row.job_type_score ?? 0),
+            locationScore: Number(row.location_score ?? 0),
             finalScore,
           },
 

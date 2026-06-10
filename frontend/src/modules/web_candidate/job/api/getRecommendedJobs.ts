@@ -110,12 +110,15 @@ export type RecommendedJobItem = {
 };
 
 export const getRecommendedJobs = async (
-  params?: { page?: number; limit?: number }
+  params?: { page?: number; limit?: number; search?: string }
 ): Promise<GetRecommendedJobsResponse> => {
+  const search = params?.search?.trim();
+
   const res = await apiClient.get("/recommendations/my-jobs", {
     params: {
       page: params?.page ?? 1,
       limit: params?.limit ?? 6,
+      search: search || undefined,
     },
   });
 
@@ -136,7 +139,7 @@ export const getRecommendedJobs = async (
 };
 
 export const useGetRecommendedJobs = (
-  params?: { page?: number; limit?: number },
+  params?: { page?: number; limit?: number; search?: string },
   config?: Omit<
     UseQueryOptions<GetRecommendedJobsResponse, Error>,
     "queryKey" | "queryFn"

@@ -115,7 +115,12 @@ export default function SearchCombobox({
         size={size}
         h={resolvedHeight}
         pr="38px"
-        value={open ? search : selected?.name || (value ? 'Loading...' : '')}
+        value={
+          open
+            ? search
+            : selected?.name ||
+              (value ? 'Loading...' : isAsync ? search : '')
+        }
         onChange={(e) => {
           setSearch(e.target.value);
           if (!open) setOpen(true);

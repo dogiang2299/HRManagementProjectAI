@@ -4,4 +4,5 @@ export type RecruitmentPlanScope = "all" | "tech" | "operations";
 export class RecruitmentPlanQueryDto {
   period?: RecruitmentPlanPeriod;
   scope?: RecruitmentPlanScope;
+  companyId?: string;
 }

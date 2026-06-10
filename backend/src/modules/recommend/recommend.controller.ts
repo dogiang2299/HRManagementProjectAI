@@ -12,6 +12,7 @@ import { extractActorFromRequest } from 'src/common/utils/request-actor.util';
 class GetMyRecommendationsQueryDto {
   page?: string;
   limit?: string;
+  search?: string;
 }
 
 @Controller('recommendations')
@@ -45,7 +46,7 @@ async getMyRecommendedJobs(
   const result =
     await this.recommendationService.getStoredRecommendationsForCurrentCandidate(
       actor,
-      { page, limit },
+      { page, limit, search: query?.search },
     );
 
   return {

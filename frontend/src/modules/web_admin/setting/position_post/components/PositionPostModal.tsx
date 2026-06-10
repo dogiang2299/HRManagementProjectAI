@@ -23,6 +23,7 @@ import { Controller, useForm } from "react-hook-form";
 import theme from "../../../../../theme";
 import LabelItem from "../../../../../components/common/Label";
 import RichTextEditorField from "../../../../../components/common/RichTextEditorField";
+import PositionSkillsEditor from "./PositionSkillsEditor";
 import { useNotify } from "../../../../../components/notification/NotifyProvider";
 import type { IPositionPost, PositionPostFormValues } from "../types";
 import { useCreatePositionPost } from "../api/create";
@@ -57,7 +58,9 @@ export default function PositionPostModal({
   const { mutateAsync: createPost } = useCreatePositionPost();
   const { mutateAsync: updatePost } = useUpdatePositionPost();
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [savedPositionId, setSavedPositionId] = useState<string | null>(null);
   const companyId = useAuthStore((state) => (state.user as any)?.company_id ?? null);
+  const positionIdForSkills = mode === "edit" ? data?.id : savedPositionId;
 
   const defaultValues: PositionPostFormValues = useMemo(
     () => ({
@@ -95,6 +98,7 @@ export default function PositionPostModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    setSavedPositionId(null);
     if (mode === "edit" && data) {
       const bm = (data as any).benefit_more || {};
       reset({
@@ -148,16 +152,22 @@ export default function PositionPostModal({
 
     try {
       if (mode === "add") {
-        await createPost(payload as any);
-        notify({ message: "Position Post created successfully", type: "success" });
+        const created = await createPost(payload as any);
+        setSavedPositionId(created?.id ?? null);
+        notify({
+          message: "Position post created",
+          description: "You can add default skills below, then close when done.",
+          type: "success",
+        });
+        onSuccess?.();
       } else {
         if (!data?.id) return;
         await updatePost({ id: data.id, data: payload as any });
         notify({ message: "Position Post updated successfully", type: "success" });
+        onSuccess?.();
+        reset(defaultValues);
+        onClose();
       }
-      onSuccess?.();
-      reset(defaultValues);
-      onClose();
     } catch (err: any) {
       let msg = "An error occurred";
       if (err?.response?.data) {
@@ -391,6 +401,21 @@ export default function PositionPostModal({
 
               <Divider my={5} borderColor="#EDF2F7" />
 
+              <LabelItem label="Position skills" fontSize="m" fontWeight={700} color="#334155" mb={2} />
+              <Text fontSize="sm" color="gray.500" mb={3}>
+                Default skills for this position. They auto-load when creating recruitment posts.
+                {mode === "add" && !savedPositionId
+                  ? " Save the position first to enable skill mapping."
+                  : ""}
+              </Text>
+              <PositionSkillsEditor
+                positionId={positionIdForSkills}
+                persistToPosition
+                disabled={!positionIdForSkills}
+              />
+
+              <Divider my={5} borderColor="#EDF2F7" />
+
               <LabelItem label="Automation settings" fontSize="m" fontWeight={700} color="#334155" mb={4} />
 
               <Box px={1}>
@@ -460,18 +485,36 @@ export default function PositionPostModal({
             >
               CANCEL
             </Button>
-            <Button
-              bg={theme.colors.primary}
-              color="white"
-              type="submit"
-              isLoading={isSubmitting || isSubmittingForm}
-              h="44px"
-              px={5}
-              borderRadius="12px"
-              _hover={{ opacity: 0.92 }}
-            >
-              {mode === "add" ? "SAVE" : "UPDATE"}
-            </Button>
+            {mode === "add" && savedPositionId ? (
+              <Button
+                bg={theme.colors.primary}
+                color="white"
+                h="44px"
+                px={5}
+                borderRadius="12px"
+                _hover={{ opacity: 0.92 }}
+                onClick={() => {
+                  reset(defaultValues);
+                  setSavedPositionId(null);
+                  onClose();
+                }}
+              >
+                DONE
+              </Button>
+            ) : (
+              <Button
+                bg={theme.colors.primary}
+                color="white"
+                type="submit"
+                isLoading={isSubmitting || isSubmittingForm}
+                h="44px"
+                px={5}
+                borderRadius="12px"
+                _hover={{ opacity: 0.92 }}
+              >
+                {mode === "add" ? "SAVE" : "UPDATE"}
+              </Button>
+            )}
           </ModalFooter>
         </form>
       </ModalContent>

@@ -27,6 +27,27 @@ export class UpdateSkillDto {
   source?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  aliases?: string[];
+
+  @IsOptional()
+  @IsString()
+  taxonomy_group?: string;
+
+  @IsOptional()
+  @IsString()
+  taxonomy_subgroup?: string;
+
+  @IsOptional()
+  @IsUUID()
+  taxonomy_group_node_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  taxonomy_subgroup_node_id?: string;
+
+  @IsOptional()
   @IsString()
   scope?: string;
 

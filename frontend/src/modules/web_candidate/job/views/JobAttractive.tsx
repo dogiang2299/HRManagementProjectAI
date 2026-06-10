@@ -131,7 +131,7 @@ export default function JobAttractive() {
             <Icon as={FiSearch} color="#94A3B8" />
           </InputLeftElement>
           <Input
-            placeholder="Tìm kiếm việc làm..."
+            placeholder="Search jobs at here ......"
             value={searchValue}
             onChange={(e) => { setSearchValue(e.target.value); setCurrentPage(1); }}
             borderRadius="14px"

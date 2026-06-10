@@ -15,7 +15,7 @@ import {
   VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { AddIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@chakra-ui/icons";
+import { AddIcon } from "@chakra-ui/icons";
 import { useGetCompanies } from "../../../inform_company/api/get_company";
 import RichTextEditorField from "../../../../../components/common/RichTextEditorField";
 import SearchCombobox from "../../../../../components/common/SearchCombobox";
@@ -24,8 +24,10 @@ import { useGetPositionPosts } from "../../../setting/position_post/api/get";
 import AddPositionModal from "../../../setting/position_post/components/AddPositionModal";
 import { useGetRanks } from "../../../setting/rank/api/get";
 import RankModal from "../../../setting/rank/components/RankModal";
-import { useGetCompanySkills, useGlobalSearchSkills } from "../../../setting/skill/api/get";
-import type { ISkill } from "../../../setting/skill/types";
+import { getSkillsForPosition } from "../../../setting/skill/api/positionSkill";
+import PositionSkillsEditor, {
+  mapApiSkillToPositionRow,
+} from "../../../setting/position_post/components/PositionSkillsEditor";
 import { Currency, EXPERIENCE_TYPE_OPTIONS, type ExperienceType } from "../../types";
 
 const TYPE_OF_JOB_OPTIONS = [
@@ -46,16 +48,7 @@ const EXPERIENCE_HELPER_TEXT: Record<ExperienceType, string> = {
   flexible: "Flexible (preferred)",
 };
 
-const SKILL_LEVEL_LABELS: Record<number, string> = {
-  1: "Basic",
-  2: "Junior",
-  3: "Intermediate",
-  4: "Advanced",
-  5: "Expert",
-};
-
-const SKILL_PAGE_SIZE = 5;
-type SkillSearchMode = "company" | "global";
+const DEFAULT_SKILL_LEVEL = "1";
 
 const buildSalaryPreview = (form: FormState) => {
   const fromValue = Number(form.salary_from || 0);
@@ -155,6 +148,7 @@ export type RecruitmentSkillForm = {
   parent_name?: string;
   level: string;
   is_required: boolean;
+  missing_taxonomy?: boolean;
 };
 
 type FormState = {
@@ -233,10 +227,6 @@ const INIT: FormState = {
 /* ── main component ── */
 export default function TabThongTin({ onFormChange, initialForm }: TabThongTinProps) {
   const [form, setForm] = useState<FormState>(INIT);
-  const [skillPickerValue, setSkillPickerValue] = useState("");
-  const [skillSearch, setSkillSearch] = useState("");
-  const [skillSearchMode, setSkillSearchMode] = useState<SkillSearchMode>("company");
-  const [skillPage, setSkillPage] = useState(1);
   const [isRankModalOpen, setIsRankModalOpen] = useState(false);
   const [isPositionModalOpen, setIsPositionModalOpen] = useState(false);
 
@@ -297,30 +287,11 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
     }
   );
 
-  const normalizedSkillSearch = skillSearch.trim();
-  const {
-    data: companySkillData = [],
-    isFetching: isCompanySkillFetching,
-  } = useGetCompanySkills(normalizedSkillSearch, {
-    enabled: Boolean(form.department_id),
-  });
-
-  const {
-    data: globalSkillData = [],
-    isFetching: isGlobalSkillFetching,
-  } = useGlobalSearchSkills(normalizedSkillSearch, 20, {
-    enabled:
-      Boolean(form.department_id) &&
-      skillSearchMode === "global" &&
-      Boolean(normalizedSkillSearch),
-  });
-
   const { data: employeeData } = useGetEmployee({ limit: 300 });
 
   const companies = companyData?.data ?? [];
   const ranks = rankData?.data ?? [];
   const positions = positionData?.data ?? [];
-  const skills = skillSearchMode === "global" ? globalSkillData : companySkillData;
   const employees = employeeData?.data ?? [];
 
   const departmentOptions = companies
@@ -337,24 +308,6 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
   const positionOptions = positions
     .map((item) => ({ id: item.id, name: item.name_post ?? "" }))
     .filter((item) => Boolean(item.name));
-
-  const formatSkillName = (skill?: ISkill | null) => {
-    if (!skill) return "";
-    return [skill.name, skill.parent?.name].filter(Boolean).join(" · ");
-  };
-
-  const skillOptions = skills
-    .map((item) => ({
-      id: item.id,
-      name: formatSkillName(item),
-    }))
-    .filter((item) => Boolean(item.name));
-
-  const isSkillFetching =
-    skillSearchMode === "global" ? isGlobalSkillFetching : isCompanySkillFetching;
-  const skillTotalPages = Math.max(1, Math.ceil(form.skills.length / SKILL_PAGE_SIZE));
-  const skillPageStart = (skillPage - 1) * SKILL_PAGE_SIZE;
-  const pagedSkills = form.skills.slice(skillPageStart, skillPageStart + SKILL_PAGE_SIZE);
 
   const selectedCompanyName =
     departmentOptions.find((c) => c.id === form.department_id)?.name ?? "";
@@ -445,26 +398,61 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
     });
   };
 
-  /* Auto-fill job content when selecting a position */
+  /* Auto-fill job description + skills from Setting Position Post */
   useEffect(() => {
     if (!form.position_post_id) return;
     const found = positions.find((p) => p.id === form.position_post_id);
     if (!found) return;
 
     const bm = (found as any).benefit_more || {};
-    setForm((prev) => ({
-      ...prev,
-      description_post: found.description_post ?? "",
-      requirements_post: found.requirements_post ?? "",
-      benefits_post: found.benefits_post ?? "",
-      benefit_more: {
-        competitive_salary: bm.competitive_salary ?? "",
-        professional_environment: bm.professional_environment ?? "",
-        training_and_development: bm.training_and_development ?? "",
-        career_opportunities: bm.career_opportunities ?? "",
-        allowances_and_welfare: bm.allowances_and_welfare ?? "",
-      },
-    }));
+    let cancelled = false;
+
+    const applyBaseFields = () => {
+      setForm((prev) => ({
+        ...prev,
+        description_post: found.description_post ?? "",
+        requirements_post: found.requirements_post ?? "",
+        benefits_post: found.benefits_post ?? "",
+        benefit_more: {
+          competitive_salary: bm.competitive_salary ?? "",
+          professional_environment: bm.professional_environment ?? "",
+          training_and_development: bm.training_and_development ?? "",
+          career_opportunities: bm.career_opportunities ?? "",
+          allowances_and_welfare: bm.allowances_and_welfare ?? "",
+        },
+      }));
+    };
+
+    applyBaseFields();
+
+    void (async () => {
+      try {
+        const res = await getSkillsForPosition(form.position_post_id);
+        if (cancelled) return;
+        const skillRows: RecruitmentSkillForm[] = (res.skills ?? []).map((skill) => {
+          const row = mapApiSkillToPositionRow(skill);
+          return {
+            skill_id: row.skill_id,
+            skill_name: row.skill_name,
+            is_required: row.is_required,
+            missing_taxonomy: row.missing_taxonomy,
+            level: DEFAULT_SKILL_LEVEL,
+          };
+        });
+        setForm((prev) => ({
+          ...prev,
+          skills: skillRows,
+        }));
+      } catch {
+        if (!cancelled) {
+          setForm((prev) => ({ ...prev, skills: [] }));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.position_post_id]);
 
@@ -485,64 +473,19 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
   const set = (field: keyof FormState, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
-  const handleSkillSelect = (skillId: string) => {
-    if (!skillId) {
-      setSkillPickerValue("");
-      return;
-    }
-
-    const found = skills.find((item) => item.id === skillId);
-    const isDuplicate = form.skills.some((item) => item.skill_id === skillId);
-
-    setForm((prev) => {
-      if (prev.skills.some((item) => item.skill_id === skillId)) return prev;
-
-      return {
-        ...prev,
-        skills: [
-          ...prev.skills,
-          {
-            skill_id: skillId,
-            skill_name: found?.name || "Selected skill",
-            parent_name: found?.parent?.name || "",
-            level: "3",
-            is_required: true,
-          },
-        ],
-      };
-    });
-
-    if (!isDuplicate) {
-      setSkillPage(Math.max(1, Math.ceil((form.skills.length + 1) / SKILL_PAGE_SIZE)));
-    }
-
-    setSkillPickerValue("");
-    setSkillSearch("");
-    setSkillSearchMode("company");
-  };
-
-  const updateSkill = (
-    skillId: string,
-    patch: Partial<Pick<RecruitmentSkillForm, "level" | "is_required">>,
+  const handleRecruitmentSkillsChange = (
+    rows: { skill_id: string; skill_name: string; is_required: boolean; missing_taxonomy?: boolean }[],
   ) => {
     setForm((prev) => ({
       ...prev,
-      skills: prev.skills.map((item) =>
-        item.skill_id === skillId ? { ...item, ...patch } : item,
-      ),
+      skills: rows.map((row) => ({
+        skill_id: row.skill_id,
+        skill_name: row.skill_name,
+        is_required: row.is_required,
+        missing_taxonomy: row.missing_taxonomy,
+        level: DEFAULT_SKILL_LEVEL,
+      })),
     }));
-  };
-
-  const removeSkill = (skillId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      skills: prev.skills.filter((item) => item.skill_id !== skillId),
-    }));
-  };
-
-  const handleSkillSearchChange = (keyword: string) => {
-    setSkillSearch(keyword);
-    setSkillSearchMode("company");
   };
 
   const salaryPreview = buildSalaryPreview(form);
@@ -554,18 +497,7 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
   useEffect(() => {
     if (!initialForm) return;
     setForm(initialForm);
-    setSkillPickerValue("");
-    setSkillPage(1);
   }, [initialForm]);
-
-  useEffect(() => {
-    setSkillSearch("");
-    setSkillSearchMode("company");
-  }, [form.department_id]);
-
-  useEffect(() => {
-    setSkillPage((prev) => Math.min(prev, skillTotalPages));
-  }, [skillTotalPages]);
 
   return (
     <Box minH="100%" py={0}>
@@ -722,8 +654,9 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
                   border="1px solid rgba(51, 67, 113, 0.08)"
                 >
                   <Text fontSize="sm" color={primary}>
-                    Description, requirements, and benefits were auto-filled from
-                    this position. You can still edit them below.
+                    Description, requirements, benefits, and default skills were
+                    loaded from this position. Removing a skill here only affects
+                    this job posting.
                   </Text>
                 </Box>
               )}
@@ -872,220 +805,20 @@ export default function TabThongTin({ onFormChange, initialForm }: TabThongTinPr
             <FormControl>
               <FieldLabel label="Recruitment skills" />
               <Text fontSize="sm" color={subtle} mb={1.5}>
-                Add the skills needed for this posting. Level uses 1-5 from Basic to Expert.
+                Select skills for this posting only. Skills already added are hidden
+                from the picker. Default skills load when you choose a recruitment position.
               </Text>
 
-              <SearchCombobox
-                value={skillPickerValue}
-                onChange={handleSkillSelect}
-                options={skillOptions}
-                isAsync
-                onSearchChange={handleSkillSearchChange}
-                isLoading={isSkillFetching}
-                placeholder={
-                  form.department_id
-                    ? "Search and add skill"
-                    : "Please select a company branch first"
-                }
-                isDisabled={!form.department_id}
-                size="md"
-                fontSize="sm"
+              <PositionSkillsEditor
+                skills={form.skills.map((item) => ({
+                  skill_id: item.skill_id,
+                  skill_name: item.skill_name,
+                  is_required: item.is_required,
+                  missing_taxonomy: item.missing_taxonomy,
+                }))}
+                onSkillsChange={handleRecruitmentSkillsChange}
+                disabled={!form.department_id}
               />
-
-              {form.department_id && normalizedSkillSearch ? (
-                <HStack mt={2} spacing={3} align="center" flexWrap="wrap">
-                  {skillSearchMode === "company" ? (
-                    <>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        colorScheme="blue"
-                        onClick={() => setSkillSearchMode("global")}
-                      >
-                        Search global skills
-                      </Button>
-                      <Text fontSize="xs" color={subtle}>
-                        Searching this company's active skills first.
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => setSkillSearchMode("company")}
-                      >
-                        Back to company skills
-                      </Button>
-                      <Text fontSize="xs" color={subtle}>
-                        Global selections are saved to this company after the job is submitted.
-                      </Text>
-                    </>
-                  )}
-                </HStack>
-              ) : null}
-
-              {form.skills.length > 0 && (
-                <Box
-                  mt={3}
-                  border="1px solid"
-                  borderColor={inputBorder}
-                  borderRadius="8px"
-                  overflow="hidden"
-                  bg={inputBg}
-                >
-                  <Grid
-                    templateColumns="minmax(0, 1fr) 120px 120px 44px"
-                    gap={3}
-                    px={3}
-                    py={2}
-                    bg="gray.50"
-                    display={{ base: "none", md: "grid" }}
-                  >
-                    <Text fontSize="xs" fontWeight="700" color={subtle}>
-                      Skill
-                    </Text>
-                    <Text fontSize="xs" fontWeight="700" color={subtle}>
-                      Level
-                    </Text>
-                    <Text fontSize="xs" fontWeight="700" color={subtle}>
-                      Required
-                    </Text>
-                    <Box />
-                  </Grid>
-
-                  {pagedSkills.map((item, index) => {
-                    const levelNumber = Number(item.level || 1);
-
-                    return (
-                      <Grid
-                        key={item.skill_id}
-                        templateColumns={{
-                          base: "1fr",
-                          md: "minmax(0, 1fr) 120px 120px 44px",
-                        }}
-                        gap={{ base: 2.5, md: 3 }}
-                        alignItems={{ base: "stretch", md: "center" }}
-                        px={3}
-                        py={3}
-                        borderTop={index === 0 ? "0" : "1px solid"}
-                        borderColor={inputBorder}
-                      >
-                        <Box minW={0}>
-                          <Text fontSize="sm" fontWeight="700" color={sectionTitleColor} noOfLines={1}>
-                            {item.skill_name}
-                          </Text>
-                          {item.parent_name && (
-                            <Text fontSize="xs" color={subtle} mt={0.5} noOfLines={1}>
-                              {item.parent_name}
-                            </Text>
-                          )}
-                        </Box>
-
-                        <Box>
-                          <Text
-                            display={{ base: "block", md: "none" }}
-                            fontSize="xs"
-                            fontWeight="700"
-                            color={subtle}
-                            mb={1}
-                          >
-                            Level
-                          </Text>
-                          <NumberInput
-                            min={1}
-                            max={5}
-                            value={item.level}
-                            onChange={(value) => updateSkill(item.skill_id, { level: value })}
-                          >
-                            <NumberInputField {...commonFieldSx} h="36px" />
-                          </NumberInput>
-                          <Text fontSize="xs" color={subtle} mt={1}>
-                            {SKILL_LEVEL_LABELS[levelNumber] || "Level"}
-                          </Text>
-                        </Box>
-
-                        <Checkbox
-                          isChecked={item.is_required}
-                          onChange={(e) =>
-                            updateSkill(item.skill_id, {
-                              is_required: e.target.checked,
-                            })
-                          }
-                          fontSize="sm"
-                          fontWeight="600"
-                          color={sectionTitleColor}
-                        >
-                          Required
-                        </Checkbox>
-
-                        <IconButton
-                          aria-label={`Remove ${item.skill_name}`}
-                          icon={<CloseIcon boxSize={2.5} />}
-                          h="36px"
-                          minW="36px"
-                          size="sm"
-                          variant="ghost"
-                          borderRadius="6px"
-                          color="gray.500"
-                          _hover={{ bg: "red.50", color: "red.500" }}
-                          onClick={() => removeSkill(item.skill_id)}
-                        />
-                      </Grid>
-                    );
-                  })}
-
-                  {form.skills.length > SKILL_PAGE_SIZE && (
-                    <HStack
-                      justify="space-between"
-                      px={3}
-                      py={2}
-                      borderTop="1px solid"
-                      borderColor={inputBorder}
-                      bg="gray.50"
-                      spacing={3}
-                    >
-                      <Text fontSize="xs" color={subtle} fontWeight="600">
-                        Showing {skillPageStart + 1}-
-                        {Math.min(skillPageStart + SKILL_PAGE_SIZE, form.skills.length)} of{" "}
-                        {form.skills.length} skills
-                      </Text>
-
-                      <HStack spacing={2}>
-                        <IconButton
-                          aria-label="Previous skill page"
-                          icon={<ChevronLeftIcon boxSize={5} />}
-                          h="32px"
-                          minW="32px"
-                          size="sm"
-                          variant="outline"
-                          borderRadius="6px"
-                          borderColor={inputBorder}
-                          bg={inputBg}
-                          isDisabled={skillPage <= 1}
-                          onClick={() => setSkillPage((prev) => Math.max(1, prev - 1))}
-                        />
-                        <Text fontSize="xs" color={sectionTitleColor} fontWeight="700" minW="52px" textAlign="center">
-                          {skillPage}/{skillTotalPages}
-                        </Text>
-                        <IconButton
-                          aria-label="Next skill page"
-                          icon={<ChevronRightIcon boxSize={5} />}
-                          h="32px"
-                          minW="32px"
-                          size="sm"
-                          variant="outline"
-                          borderRadius="6px"
-                          borderColor={inputBorder}
-                          bg={inputBg}
-                          isDisabled={skillPage >= skillTotalPages}
-                          onClick={() => setSkillPage((prev) => Math.min(skillTotalPages, prev + 1))}
-                        />
-                      </HStack>
-                    </HStack>
-                  )}
-                </Box>
-              )}
             </FormControl>
           </VStack>
         </Box>

@@ -60,6 +60,10 @@ export default function SkillModal({
   const defaultValues: SkillFormValues = useMemo(
     () => ({
       name: "",
+      description: "",
+      aliases: "",
+      taxonomy_group: "",
+      taxonomy_subgroup: "",
       parent_id: "",
       status: SKILL_STATUS.ACTIVE,
       unit_id: "",
@@ -92,6 +96,10 @@ export default function SkillModal({
     if (mode === "edit" && data) {
       reset({
         name: safeStr(data.name),
+        description: safeStr(data.description),
+        aliases: "",
+        taxonomy_group: "",
+        taxonomy_subgroup: "",
         parent_id: safeStr(data.parent_id),
         status: data.is_active
           ? SKILL_STATUS.ACTIVE

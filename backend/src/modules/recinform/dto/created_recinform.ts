@@ -158,4 +158,9 @@ export class CreateRecruitmentInforDto {
   @ValidateNested({ each: true })
   @Type(() => RecruitmentSkillDto)
   skills?: RecruitmentSkillDto[]
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  skill_ids?: string[]
 }

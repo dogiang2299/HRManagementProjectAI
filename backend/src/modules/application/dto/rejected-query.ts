@@ -4,4 +4,5 @@ export type ApplicationRejectedScope = "all" | "tech" | "operations";
 export class ApplicationRejectedQueryDto {
   period?: ApplicationRejectedPeriod;
   scope?: ApplicationRejectedScope;
+  companyId?: string;
 }
